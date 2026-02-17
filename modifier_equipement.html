@@ -1,0 +1,17 @@
+<h2>Modifier l'équipement</h2>
+
+<form method="POST">
+    <label>Nom :</label><br>
+    <input type="text" name="nom" value="{{ equipement['nom'] }}"><br><br>
+
+    <label>Série :</label><br>
+    <input type="text" name="numero_serie" value="{{ equipement['numero_serie'] }}"><br><br>
+
+    <label>Localisation :</label><br>
+    <input type="text" name="localisation" value="{{ equipement['localisation'] }}"><br><br>
+
+    <button type="submit">Enregistrer</button>
+</form>
+
+<br>
+<a href="/equipements">Retour</a>

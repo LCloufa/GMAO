@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1>Gestion des équipements</h1>
+
+<form action="/equipements/add" method="POST" class="form">
+    <input type="text" name="nom" placeholder="Nom" required>
+    <input type="text" name="type" placeholder="Type">
+    <input type="text" name="numero_serie" placeholder="N° Série">
+    <input type="text" name="localisation">
+
+    <button type="submit">Ajouter</button>
+</form>
+
+<table>
+    <tr>
+        <th>Nom</th>
+        <th>Type</th>
+        <th>Série</th>
+        <th>localisation</th>
+        <th>Actions</th>
+    </tr>
+
+    {% for eq in equipements %}
+    <tr>
+        <td>{{ eq[1] }}</td>
+        <td>{{ eq[2] }}</td>
+        <td>{{ eq[3] }}</td>
+        <td>{{ eq[4] }}</td>
+        <td>
+            <a href="/modifier_equipement/{{ eq[0] }}">✏️ Modifier</a>
+            |
+            <a href="/equipements/delete/{{ eq[0] }}" class="delete">Supprimer</a>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+
+{% endblock %}

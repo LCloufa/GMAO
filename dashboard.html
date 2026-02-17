@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1>Dashboard</h1>
+
+<div class="cards">
+    <div class="card">
+        <h3>Équipements</h3>
+        <p>{{ nb_equipements }}</p>
+    </div>
+
+    <div class="card">
+        <h3>Interventions en cours</h3>
+        <p>{{ en_cours }}</p>
+    </div>
+
+    <div class="card">
+        <h3>Interventions planifiées</h3>
+        <p>{{ planifiees }}</p>
+    </div>
+</div>
+
+{% endblock %}
