@@ -2,39 +2,89 @@
 
 {% block content %}
 
-<h1>Gestion des équipements</h1>
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:30px;">
+    <h1>Gestion des équipements</h1>
 
-<form action="/equipements/add" method="POST" class="form">
-    <input type="text" name="nom" placeholder="Nom" required>
-    <input type="text" name="type" placeholder="Type">
-    <input type="text" name="numero_serie" placeholder="N° Série">
-    <input type="text" name="localisation">
-
-    <button type="submit">Ajouter</button>
-</form>
-
+    <a href="/equipements/nouveau" class="btn-primary">
+        + Nouvel équipement
+    </a>
+</div>
 <table>
     <tr>
+	<th>Client</th>
         <th>Nom</th>
         <th>Type</th>
         <th>Série</th>
-        <th>localisation</th>
-        <th>Actions</th>
+        <th>Localisation</th>
     </tr>
 
     {% for eq in equipements %}
-    <tr>
-        <td>{{ eq[1] }}</td>
+    <tr 
+    onclick="handleClick(event, {{ eq[0] }})"
+    style="cursor:pointer;">
+        <td>{{ eq[5] if eq[5] else "-" }}</td>
+	<td>{{ eq[1] }}</td>
         <td>{{ eq[2] }}</td>
         <td>{{ eq[3] }}</td>
         <td>{{ eq[4] }}</td>
-        <td>
-            <a href="/modifier_equipement/{{ eq[0] }}">✏️ Modifier</a>
-            |
-            <a href="/equipements/delete/{{ eq[0] }}" class="delete">Supprimer</a>
-        </td>
     </tr>
     {% endfor %}
 </table>
+<script>
+let clickTimer = null;
 
+function handleClick(event, id) {
+
+    if (clickTimer) {
+        clearTimeout(clickTimer);
+        clickTimer = null;
+
+        // DOUBLE CLIC → modifier
+        window.location.href = "/modifier_equipement/" + id;
+    } else {
+        clickTimer = setTimeout(function() {
+            // SIMPLE CLIC → fiche
+            window.location.href = "/equipements/" + id;
+            clickTimer = null;
+        }, 250);
+    }
+}
+</script>
+
+<script>
+let selectedId = null;
+
+function selectRow(row, id) {
+
+    // Si on reclique sur la ligne déjà sélectionnée
+    if (selectedId === id) {
+        row.classList.remove("selected-row");
+        selectedId = null;
+        document.getElementById("equipmentActions").classList.add("hidden");
+        return;
+    }
+
+    // Sinon on sélectionne normalement
+    document.querySelectorAll("table tr").forEach(tr => {
+        tr.classList.remove("selected-row");
+    });
+
+    row.classList.add("selected-row");
+    selectedId = id;
+
+    document.getElementById("equipmentActions").classList.remove("hidden");
+}
+
+function modifierEquipement() {
+    if (selectedId) {
+        window.location.href = "/modifier_equipement/" + selectedId;
+    }
+}
+
+function supprimerEquipement() {
+    if (selectedId && confirm("Confirmer la suppression ?")) {
+        window.location.href = "/equipements/delete/" + selectedId;
+    }
+}
+</script>
 {% endblock %}

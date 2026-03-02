@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>{{ equipement.nom }}</h1>
+<div style="margin-bottom:20px; display:flex; gap:15px;">
+    <a href="/equipements" class="btn-secondary">
+        ← Retour
+    </a>
+
+    <a href="/modifier_equipement/{{ equipement.id }}" class="btn-primary">
+        Modifier
+    </a>
+</div>
+<div class="card large-card">
+
+{% if equipement.photo %}
+<img src="/{{ equipement.photo }}" style="max-width:300px; border-radius:12px; margin-bottom:20px;">
+{% endif %}
+
+<div class="form-grid">
+
+<p><strong>Code :</strong> {{ equipement.code }}</p>
+<p><strong>Type :</strong> {{ equipement.type }}</p>
+
+<p><strong>Statut :</strong> {{ equipement.statut }}</p>
+<p><strong>Client :</strong> {{ equipement.client_nom }}</p>
+
+<p><strong>Emplacement :</strong> {{ equipement.emplacement }}</p>
+<p><strong>Fabricant :</strong> {{ equipement.fabricant }}</p>
+
+<p><strong>Modèle :</strong> {{ equipement.modele }}</p>
+<p><strong>N° Série :</strong> {{ equipement.numero_serie }}</p>
+
+<p><strong>Date installation :</strong> {{ equipement.date_installation }}</p>
+
+</div>
+
+<hr>
+
+<h3>Documents</h3>
+
+<ul>
+{% for doc in documents %}
+    <li>
+        <a href="/{{ doc.filepath }}" target="_blank">{{ doc.filename }}</a>
+    </li>
+{% endfor %}
+</ul>
+
+</div>
+
+{% endblock %}
