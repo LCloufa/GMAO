@@ -1,0 +1,509 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1 style="margin-bottom:30px;">Tableau de bord</h1>
+<form method="GET" style="margin-bottom:30px;">
+    <div style="display:flex; gap:20px; align-items:center;">
+
+        <select name="client"
+                onchange="this.form.submit()"
+                style="padding:10px 14px;
+                       border-radius:10px;
+                       border:1px solid #e2e8f0;
+                       min-width:220px;">
+
+            <option value="">Tous les clients</option>
+
+            {% for c in clients %}
+                <option value="{{ c[0] }}"
+                    {% if selected_client and selected_client|int == c[0] %}
+                        selected
+                    {% endif %}>
+                    {{ c[1] }}
+                </option>
+            {% endfor %}
+        </select>
+
+        {% if selected_client %}
+            <a href="/"
+               style="text-decoration:none;
+                      background:#e2e8f0;
+                      padding:10px 16px;
+                      border-radius:10px;">
+                Réinitialiser
+            </a>
+        {% endif %}
+
+    </div>
+</form>
+<div class="cards" style="margin-bottom:40px;">
+
+    <div class="card">
+        <h3>Équipements</h3>
+        <p>{{ nb_equipements }}</p>
+    </div>
+
+    <div class="card">
+        <h3>Maintenance aujourd’hui</h3>
+        <p style="color:#eab308;">{{ maintenance_today }}</p>
+    </div>
+
+    <div class="card">
+        <h3>Interventions en cours</h3>
+        <p style="color:#2563eb;">{{ en_cours }}</p>
+    </div>
+
+</div>
+{% set pannes = equipements_etat | selectattr(3, "equalto", "En panne") | list %}
+
+{% if pannes|length > 0 %}
+<div style="background:#fff7ed;
+            border:1px solid #fed7aa;
+            padding:25px;
+            border-radius:18px;
+            margin-bottom:40px;">
+
+    <h2 style="color:#b91c1c; margin-bottom:15px;">
+        ⚠ Attention requise
+    </h2>
+
+    {% for eq in pannes %}
+        <div style="display:flex; justify-content:space-between; padding:12px 0;">
+            <strong>{{ eq[1] }}</strong>
+            <span class="badge priority-critical">En panne</span>
+        </div>
+    {% endfor %}
+
+</div>
+{% endif %}
+
+<h2 style="margin-bottom:20px;">État des équipements</h2>
+
+<div style="display:grid;
+            grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+            gap:20px;
+            margin-bottom:50px;">
+
+{% for eq in equipements_etat %}
+
+    <div style="background:white;
+                border-radius:18px;
+                padding:20px;
+                box-shadow:0 10px 25px rgba(0,0,0,0.05);
+                display:flex;
+                justify-content:space-between;
+                align-items:center;">
+
+        <div>
+            <div style="font-weight:600;">
+                {{ eq[1] }}
+            </div>
+        </div>
+
+        {% if eq[3] == "En panne" %}
+    	<span class="badge priority-critical">En panne</span>
+
+	{% elif eq[3] == "Maintenance" %}
+    	<span class="badge priority-medium">Maintenance</span>
+
+	{% elif eq[3] == "Planifiée" %}
+    	<span class="badge priority-high">Planifiée</span>
+
+	{% else %}
+    	<span class="badge priority-low">Opérationnel</span>
+	{% endif %}
+
+    </div>
+
+{% endfor %}
+</div>
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+
+    <h2 style="margin:0;">Planning</h2>
+
+    <div class="view-switch">
+        <button id="btnCalendar" class="btn-primary active-view">Planning</button>
+        <button id="btnGantt" class="btn-secondary">Vue Gantt</button>
+    </div>
+
+</div>
+
+<div id="calendarView">
+    <div id="calendar"></div>
+</div>
+
+<div id="ganttView" style="display:none;">
+    <div class="gantt-nav">
+    <button onclick="previousPeriod()">◀</button>
+    <span id="ganttTitle"></span>
+    <button onclick="nextPeriod()">▶</button>
+
+    <button onclick="setWeek()">Semaine</button>
+    <button onclick="setMonth()">Mois</button>
+</div>
+	<div class="gantt-container">
+        <div class="gantt-grid" id="ganttGrid"></div>
+    </div>
+</div>
+
+<script>
+
+const interventions = {{ interventions|tojson }};
+
+function getColor(priority) {
+    switch(priority) {
+        case "low": return "#22c55e";
+        case "medium": return "#eab308";
+        case "high": return "#f97316";
+        case "critical": return "#dc2626";
+        default: return "#3b82f6";
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+
+    const calendarEl = document.getElementById('calendar');
+
+    const events = interventions.map(i => {
+
+        const start = i[1] + "T" + (i[2] || "08:00");
+        const durationMinutes = i[3] || 60;
+
+        const startDate = new Date(start);
+        const endDate = new Date(startDate.getTime() + durationMinutes*60000);
+
+        return {
+            id: i[9], // ID en dernière position
+            title: i[0],
+            start: startDate,
+            end: endDate,
+            backgroundColor: getColor(i[4]),
+            borderColor: getColor(i[4]),
+            extendedProps: {
+                equipement: i[5],
+                technicien: i[6],
+                client: i[7],
+                description: i[8],
+                priority: i[4]
+            }
+        };
+    });
+
+    const calendar = new FullCalendar.Calendar(calendarEl, {
+
+        locale: 'fr',
+        initialView: 'timeGridWeek',
+
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        },
+
+        events: events,
+
+        eventClick: function(info) {
+            console.log("CLICK EVENT", info.event.id); // test
+            openIntervention(info.event.id);
+        }
+
+    });
+
+    calendar.render();
+// =====================
+// SWITCH VUES
+// =====================
+
+document.getElementById("btnCalendar").onclick = function() {
+    document.getElementById("calendarView").style.display = "block";
+    document.getElementById("ganttView").style.display = "none";
+    this.classList.add("active-view");
+    document.getElementById("btnGantt").classList.remove("active-view");
+};
+
+document.getElementById("btnGantt").onclick = function() {
+    document.getElementById("calendarView").style.display = "none";
+    document.getElementById("ganttView").style.display = "block";
+    this.classList.add("active-view");
+    document.getElementById("btnCalendar").classList.remove("active-view");
+    renderGantt();
+    updateTitle();
+    startGanttClock(); // ✅
+};
+
+// =====================
+// GANTT
+// =====================
+
+// ==========================
+// CONFIG GANTT
+// ==========================
+
+let ganttMode = "week"; // week | month
+let currentDate = new Date();
+
+function getStartOfWeek(date) {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    return new Date(d.setDate(diff));
+}
+
+function getEndOfWeek(start) {
+    const end = new Date(start);
+    end.setDate(start.getDate() + 4); // ✅ lundi + 4 = vendredi
+    return end;
+}
+
+function getStartOfMonth(date) {
+    return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function getEndOfMonth(date) {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+}
+
+function renderGantt() {
+
+    const grid = document.getElementById("ganttGrid");
+    grid.innerHTML = "";
+
+    let startDate, endDate;
+
+    if (ganttMode === "week") {
+        startDate = getStartOfWeek(currentDate);
+        endDate = getEndOfWeek(startDate);
+    } else {
+        startDate = getStartOfMonth(currentDate);
+        endDate = getEndOfMonth(currentDate);
+    }
+
+    const totalDays = Math.ceil((endDate - startDate) / (1000*60*60*24)) + 1;
+
+    const labelWidth = 220;
+    const dayWidth   = 120;
+    const headerH    = 46;
+    const rowH       = 90;
+    const barH       = 46;
+
+    // largeur mini pour avoir la timeline complète
+    grid.style.minWidth = (labelWidth + totalDays * dayWidth + 40) + "px";
+
+    // ======================
+    // HEADER DATES (sticky)
+    // ======================
+    const headerWrap = document.createElement("div");
+    headerWrap.className = "gantt-header";
+
+    const spacer = document.createElement("div");
+    spacer.className = "gantt-header-spacer";
+    spacer.style.width = labelWidth + "px";
+    headerWrap.appendChild(spacer);
+
+	const monthTitle = document.createElement("div");
+	monthTitle.style.position = "absolute";
+	monthTitle.style.zIndex = "20";
+	monthTitle.style.left = "0";
+	monthTitle.style.top = "-34px";
+	monthTitle.style.fontWeight = "700";
+	monthTitle.style.color = "#334155";
+	monthTitle.innerText = startDate.toLocaleString("fr-FR", { month: "long", year: "numeric" });
+
+	grid.appendChild(monthTitle);
+    for (let i = 0; i < totalDays; i++) {
+        const d = new Date(startDate);
+        d.setDate(startDate.getDate() + i);
+
+        const cell = document.createElement("div");
+        cell.className = "gantt-day";
+        cell.style.width = dayWidth + "px";
+        const jours = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+
+	const dd = String(d.getDate()).padStart(2, "0");
+	const mm = String(d.getMonth() + 1).padStart(2, "0");
+
+	cell.innerText = jours[d.getDay()] + " " + dd + "/" + mm;
+
+        headerWrap.appendChild(cell);
+    }
+
+    grid.appendChild(headerWrap);
+
+    // ======================
+    // NOW LINE (date + heure)
+    // ======================
+    const now = new Date();
+    if (now >= startDate && now <= endDate) {
+        const msPerDay = 1000 * 60 * 60 * 24;
+
+        // position dans la journée (0 → 1)
+        const fracDay = (now.getHours() * 60 + now.getMinutes()) / (24 * 60);
+
+        // nb de jours depuis startDate + fraction jour
+        const diffDays = ((now - startDate) / msPerDay) + fracDay;
+
+        const line = document.createElement("div");
+        line.className = "gantt-today-line";
+        line.style.left = (labelWidth + diffDays * dayWidth) + "px";
+        line.style.top = headerH + "px";
+        line.style.bottom = "0";
+        grid.appendChild(line);
+    }
+
+    // ======================
+    // ROWS + BARS
+    // ======================
+    let rowIndex = 0;
+
+    interventions.forEach((i) => {
+
+    	const start = new Date(i[1] + "T" + (i[2] || "08:00"));
+    	const durationMinutes = i[3] || 60;
+    	const end = new Date(start.getTime() + durationMinutes * 60000);
+
+    	// hors plage affichée
+    	if (end < startDate || start > endDate) return;
+
+    	const leftDays = (start - startDate) / (1000*60*60*24);
+    	const durationDays = Math.max(durationMinutes / (60*8), 0.15); 
+	// 8h = 1 journée de travail, min 0.15 jour pour rester visible
+
+    	const row = document.createElement("div");
+    	row.className = "gantt-row";
+    	row.style.height = rowH + "px";
+
+    	const label = document.createElement("div");
+    	label.className = "gantt-label";
+    	label.style.width = labelWidth + "px";
+    	label.innerText = i[0];
+
+    	row.appendChild(label);
+    	grid.appendChild(row);
+
+    	const bar = document.createElement("div");
+    	bar.className = "gantt-bar";
+
+    	bar.style.left = (labelWidth + leftDays * dayWidth) + "px";
+    	bar.style.width = Math.max(durationDays * dayWidth, 80) + "px";
+
+    	// ✅ position verticale alignée sur la vraie ligne affichée
+    	bar.style.top = (headerH + rowIndex * rowH + (rowH - barH)/2) + "px";
+    	bar.style.height = barH + "px";
+
+    	bar.style.background = getColor(i[4]);
+    	bar.innerText = i[5] || "";
+
+    	bar.onclick = function() {
+            openIntervention(i[9]);
+    	};
+
+    	grid.appendChild(bar);
+
+    	rowIndex++; // ✅ on incrémente seulement quand on affiche
+    });
+	grid.style.minHeight = (headerH + rowIndex * rowH + 40) + "px";
+}
+function updateTitle() {
+
+    const title = document.getElementById("ganttTitle");
+
+    if (ganttMode === "week") {
+        const start = getStartOfWeek(currentDate);
+        const end = getEndOfWeek(start);
+        title.innerText =
+            start.getDate() + "/" + (start.getMonth()+1)
+            + " - "
+            + end.getDate() + "/" + (end.getMonth()+1);
+    } else {
+        title.innerText =
+            currentDate.toLocaleString('fr-FR', { month: 'long', year: 'numeric' });
+    }
+}
+
+function previousPeriod() {
+    if (ganttMode === "week")
+        currentDate.setDate(currentDate.getDate() - 7);
+    else
+        currentDate.setMonth(currentDate.getMonth() - 1);
+
+    renderGantt();
+    updateTitle();
+}
+
+function nextPeriod() {
+    if (ganttMode === "week")
+        currentDate.setDate(currentDate.getDate() + 7);
+    else
+        currentDate.setMonth(currentDate.getMonth() + 1);
+
+    renderGantt();
+    updateTitle();
+}
+
+function setWeek() {
+    ganttMode = "week";
+    renderGantt();
+    updateTitle();
+}
+
+function setMonth() {
+    ganttMode = "month";
+    renderGantt();
+    updateTitle();
+}
+let ganttTimer = null;
+
+function startGanttClock() {
+    if (ganttTimer) clearInterval(ganttTimer);
+    ganttTimer = setInterval(() => {
+        // on ne redraw que si le gantt est visible
+        if (document.getElementById("ganttView").style.display !== "none") {
+            renderGantt();
+            updateTitle();
+        }
+    }, 60000); // toutes les minutes
+}
+
+// ✅ rendre les fonctions accessibles aux onclick du HTML
+window.renderGantt = renderGantt;
+window.updateTitle = updateTitle;
+window.previousPeriod = previousPeriod;
+window.nextPeriod = nextPeriod;
+window.setWeek = setWeek;
+window.setMonth = setMonth;
+
+});
+</script>
+<style>
+
+#calendar {
+    background: white;
+    border-radius: 8px;
+    padding: 10px;
+}
+
+.fc-timegrid-event {
+    margin: 2px !important; /* espace entre événements */
+}
+
+.fc-timegrid-slot {
+    border-color: #e5e7eb !important;
+}
+
+.fc-col-header-cell {
+    background: #f8fafc;
+    font-weight: 600;
+}
+
+.fc-toolbar-title {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.fc-button {
+    border-radius: 6px !important;
+}
+
+</style>
+
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:30px;">
+    <h1>Gestion des interventions</h1>
+
+    <a href="/interventions/nouvelle" class="btn-primary">
+        + Nouvelle intervention
+    </a>
+</div>
+
+<table>
+    <tr>
+        <th>Titre</th>
+        <th>Type</th>
+        <th>Priorité</th>
+        <th>Statut</th>
+        <th>Date</th>
+        <th>Heure</th>
+        <th>Équipement</th>
+        <th>Technicien</th>
+    </tr>
+
+    {% for i in interventions %}
+    <tr onclick="openIntervention({{ i[0] }})" style="cursor:pointer;">
+        <td>{{ i[1] }}</td>
+
+        <td>
+            <span class="badge type-{{ i[2] }}">{{ i[2] }}</span>
+        </td>
+
+        <td>
+            <span class="badge priority-{{ i[3] }}">{{ i[3] }}</span>
+        </td>
+
+        <td>
+            <span class="badge status-{{ i[4] }}">{{ i[4] }}</span>
+        </td>
+
+        <td>{{ i[5] }}</td>
+        <td>{{ i[6] }}</td>
+        <td>{{ i[7] }}</td>
+        <td>{{ i[8] }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}

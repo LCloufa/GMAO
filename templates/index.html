@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>GMAO Web</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="sidebar">
+    <h2>GMAO</h2>
+    <a href="#">Équipements</a>
+    <a href="#">Interventions</a>
+    <a href="#">Techniciens</a>
+</div>
+
+<div class="main">
+    <h1>Gestion des équipements</h1>
+
+    <form action="/add" method="POST" class="form">
+        <input type="text" name="nom" placeholder="Nom" required>
+        <input type="text" name="serie" placeholder="N° Série" required>
+        <input type="text" name="localisation" placeholder="Localisation">
+        <button type="submit">Ajouter</button>
+    </form>
+
+    <table>
+        <tr>
+            <th>Nom</th>
+            <th>Série</th>
+            <th>Localisation</th>
+            <th>Action</th>
+        </tr>
+        {% for eq in equipements %}
+        <tr>
+            <td>{{ eq[1] }}</td>
+            <td>{{ eq[2] }}</td>
+            <td>{{ eq[3] }}</td>
+            <td>
+                <a href="/delete/{{ eq[0] }}" class="delete">Supprimer</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+
+</body>
+</html>

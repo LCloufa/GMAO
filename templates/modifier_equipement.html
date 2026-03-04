@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1 style="margin-bottom:30px;">Modifier l'équipement</h1>
+
+<form method="POST" enctype="multipart/form-data" class="form">
+
+<div class="form-row">
+    <div class="floating-group">
+    <input type="text"
+           name="nom"
+           value="{{ equipement.nom }}"
+           placeholder=" "
+           class="floating-input">
+    <label class="floating-label">Nom</label>
+</div>
+    <div class="floating-group">
+    <input type="text"
+           name="code"
+           value="{{ equipement.code }}"
+           placeholder=" "
+           class="floating-input">
+    <label class="floating-label">Code</label>
+</div>
+    <<div class="floating-group">
+    <input type="text"
+           name="type"
+           value="{{ equipement.type }}"
+           placeholder=" "
+           class="floating-input">
+    <label class="floating-label">Type</label>
+</div>
+</div>
+
+<div class="form-row">
+    <select name="statut">
+        <option value="Opérationnel" {% if equipement.statut=="Opérationnel" %}selected{% endif %}>Opérationnel</option>
+        <option value="En maintenance" {% if equipement.statut=="En maintenance" %}selected{% endif %}>En maintenance</option>
+        <option value="Hors service" {% if equipement.statut=="Hors service" %}selected{% endif %}>Hors service</option>
+    </select>
+
+    <div class="floating-group">
+    <input type="text"
+           name="emplacement"
+           value="{{ equipement.emplacement }}"
+           placeholder=" "
+           class="floating-input">
+    <label class="floating-label">Emplacement</label>
+</div>
+
+    <select name="client_id">
+        {% for c in clients %}
+            <option value="{{ c[0] }}"
+                {% if c[0]==equipement.client_id %}selected{% endif %}>
+                {{ c[1] }}
+            </option>
+        {% endfor %}
+    </select>
+</div>
+
+<div class="form-row">
+    <div class="floating-group">
+    <input type="text"
+           name="fabricant"
+           value="{{ equipement.fabricant }}"
+           placeholder=" "
+           class="floating-input">
+    <label class="floating-label">Fabricant</label>
+</div>
+    <div class="floating-group">
+    <input type="text"
+           name="modele"
+           value="{{ equipement.modele }}"
+           placeholder=" "
+           class="floating-input">
+    <label class="floating-label">Modèle</label>
+</div>
+    <div class="floating-group">
+    <input type="text"
+           name="numero_serie"
+           value="{{ equipement.nmero_serie }}"
+           placeholder=" "
+           class="floating-input">
+    <label class="floating-label">Numéro de série</label>
+</div>
+</div>
+
+<div class="floating-group">
+    <input type="text"
+           name="date_installation"
+           value="{{ equipement.date_installation }}"
+           placeholder=" "
+           class="floating-input">
+    <label class="floating-label">Date d'installation</label>
+</div>
+</div>
+
+<hr>
+
+<h3>Photo actuelle</h3>
+{% if equipement.photo %}
+<img src="/{{ equipement.photo }}" style="max-width:200px; border-radius:10px;">
+{% else %}
+<p>Aucune photo</p>
+{% endif %}
+
+<div style="margin-top:15px;">
+    <label class="upload-btn">
+        📷 Remplacer la photo
+        <input type="file" name="photo" hidden>
+    </label>
+</div>
+
+<hr>
+
+<h3>Documents existants</h3>
+
+<ul>
+{% for doc in documents %}
+    <li>
+        <a href="/{{ doc.filepath }}" target="_blank">
+            {{ doc.filename }}
+        </a>
+    </li>
+{% endfor %}
+</ul>
+
+<div style="margin-top:20px;">
+    <label class="upload-btn">
+        📎 Ajouter des documents
+        <input type="file" name="documents" multiple hidden>
+    </label>
+</div>
+
+<div class="actions-row" style="margin-top:30px; justify-content:flex-end;">
+    <a href="/equipements/{{ equipement.id }}" 
+       style="margin-right:20px; color:#64748b; text-decoration:none;">
+       Annuler
+    </a>
+
+    <button type="submit" class="btn-primary">
+        Enregistrer les modifications
+    </button>
+</div>
+
+</form>
+
+{% endblock %}

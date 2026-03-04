@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:30px;">
+    <h1>Gestion des équipements</h1>
+
+    <a href="/equipements/nouveau" class="btn-primary">
+        + Nouvel équipement
+    </a>
+</div>
+<table>
+    <tr>
+	<th>Client</th>
+        <th>Nom</th>
+        <th>Type</th>
+        <th>Série</th>
+        <th>Localisation</th>
+    </tr>
+
+    {% for eq in equipements %}
+    <tr 
+    onclick="handleClick(event, {{ eq[0] }})"
+    style="cursor:pointer;">
+        <td>{{ eq[5] if eq[5] else "-" }}</td>
+	<td>{{ eq[1] }}</td>
+        <td>{{ eq[2] }}</td>
+        <td>{{ eq[3] }}</td>
+        <td>{{ eq[4] }}</td>
+    </tr>
+    {% endfor %}
+</table>
+<script>
+let clickTimer = null;
+
+function handleClick(event, id) {
+
+    if (clickTimer) {
+        clearTimeout(clickTimer);
+        clickTimer = null;
+
+        // DOUBLE CLIC → modifier
+        window.location.href = "/modifier_equipement/" + id;
+    } else {
+        clickTimer = setTimeout(function() {
+            // SIMPLE CLIC → fiche
+            window.location.href = "/equipements/" + id;
+            clickTimer = null;
+        }, 250);
+    }
+}
+</script>
+
+<script>
+let selectedId = null;
+
+function selectRow(row, id) {
+
+    // Si on reclique sur la ligne déjà sélectionnée
+    if (selectedId === id) {
+        row.classList.remove("selected-row");
+        selectedId = null;
+        document.getElementById("equipmentActions").classList.add("hidden");
+        return;
+    }
+
+    // Sinon on sélectionne normalement
+    document.querySelectorAll("table tr").forEach(tr => {
+        tr.classList.remove("selected-row");
+    });
+
+    row.classList.add("selected-row");
+    selectedId = id;
+
+    document.getElementById("equipmentActions").classList.remove("hidden");
+}
+
+function modifierEquipement() {
+    if (selectedId) {
+        window.location.href = "/modifier_equipement/" + selectedId;
+    }
+}
+
+function supprimerEquipement() {
+    if (selectedId && confirm("Confirmer la suppression ?")) {
+        window.location.href = "/equipements/delete/" + selectedId;
+    }
+}
+</script>
+{% endblock %}
