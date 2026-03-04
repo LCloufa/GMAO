@@ -206,6 +206,7 @@ def users():
     return render_template("users.html", users=users)
 
 @app.route("/debug-users")
+@admin_required
 def debug_users():
     conn = sqlite3.connect("database.db")
     cur = conn.cursor()
@@ -1004,6 +1005,7 @@ def modifier_client(id):
 if __name__ == "__main__":
     init_db()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+
 
 
 
