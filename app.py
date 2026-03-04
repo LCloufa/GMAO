@@ -217,13 +217,17 @@ def debug_users():
 # Suppression compte
 # ==========================
 
-@app.route("/users/delete/<int:id>")
-@login_required
+@app.route("/users/delete/<int:id>", methods=["POST"])
+@admin_required
 def delete_user(id):
+    # Empêche de se supprimer soi-même
+    if session.get("user_id") == id:
+        return "Vous ne pouvez pas supprimer votre propre compte"
 
-    if session["role"] != "admin":
-        return "Accès refusé"
-        # Compter les admins
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+
+    # Compter les admins
     cursor.execute("SELECT COUNT(*) FROM users WHERE role='admin'")
     admin_count = cursor.fetchone()[0]
 
@@ -235,16 +239,7 @@ def delete_user(id):
         conn.close()
         return "Impossible de supprimer le dernier administrateur"
 
-    # Empêche de se supprimer soi-même
-    if session["user_id"] == id:
-        return "Vous ne pouvez pas supprimer votre propre compte"
-
-    conn = sqlite3.connect("database.db")
-    cursor = conn.cursor()
-
     cursor.execute("DELETE FROM users WHERE id = ?", (id,))
-    
-
     conn.commit()
     conn.close()
 
@@ -1009,6 +1004,7 @@ def modifier_client(id):
 if __name__ == "__main__":
     init_db()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+
 
 
 
