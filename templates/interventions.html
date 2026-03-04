@@ -4,9 +4,9 @@
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:30px;">
     <h1>Gestion des interventions</h1>
 
-    <a href="/interventions/nouvelle" class="btn-primary">
-        + Nouvelle intervention
-    </a>
+    <button class="btn-primary" onclick="openInterventionForm()">
+    + Nouvelle intervention
+    </button>
 </div>
 
 <table>
@@ -44,4 +44,5 @@
     </tr>
     {% endfor %}
 </table>
+
 {% endblock %}
