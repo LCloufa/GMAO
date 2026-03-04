@@ -21,6 +21,15 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if "user_id" not in session:
+            return redirect("/login")
+        if session.get("role") != "admin":
+            return "Accès refusé"
+        return f(*args, **kwargs)
+    return decorated_function
 
 # ==========================
 # Base de données
@@ -180,7 +189,7 @@ def logout():
 # ==========================
 
 @app.route("/users")
-@login_required
+@admin_required
 def users():
 
     if session["role"] != "admin":
@@ -999,9 +1008,7 @@ def modifier_client(id):
 
 if __name__ == "__main__":
     init_db()
-    import os
-
-if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+
 
 
