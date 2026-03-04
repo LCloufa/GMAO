@@ -249,7 +249,71 @@ def delete_user(id):
 # ==========================
 # Dashboard
 # ==========================
+from datetime import datetime, date, time, timedelta
 
+WORK_SLOTS = [
+    ("08:00", "12:00"),
+    ("13:00", "17:00"),
+]
+
+def _parse_hhmm(s: str) -> time:
+    h, m = s.split(":")
+    return time(int(h), int(m))
+
+def split_into_work_segments(start_dt: datetime, duration_minutes: int):
+    """
+    Découpe une intervention en segments qui respectent :
+    08:00-12:00 et 13:00-17:00 (lun-ven)
+    Retourne une liste de tuples (seg_start_dt, seg_end_dt)
+    """
+    remaining = duration_minutes
+    cur = start_dt
+    segments = []
+
+    # Si pas d'heure fournie: on force à 08:00
+    if cur.time() == time(0, 0):
+        cur = cur.replace(hour=8, minute=0)
+
+    while remaining > 0:
+        # Weekend -> lundi suivant 08:00
+        while cur.weekday() >= 5:  # 5=Sam, 6=Dim
+            cur = datetime.combine((cur.date() + timedelta(days=1)), time(8, 0))
+
+        day = cur.date()
+
+        # Trouver le prochain slot valide dans la journée
+        placed = False
+        for slot_start, slot_end in WORK_SLOTS:
+            s = datetime.combine(day, _parse_hhmm(slot_start))
+            e = datetime.combine(day, _parse_hhmm(slot_end))
+
+            # Si on est après la fin du slot, on passe au suivant
+            if cur >= e:
+                continue
+
+            # Si on est avant le slot, on se cale au début
+            seg_start = max(cur, s)
+
+            # minutes dispo dans ce slot
+            available = int((e - seg_start).total_seconds() // 60)
+            if available <= 0:
+                continue
+
+            use = min(remaining, available)
+            seg_end = seg_start + timedelta(minutes=use)
+
+            segments.append((seg_start, seg_end))
+            remaining -= use
+            cur = seg_end
+            placed = True
+            break
+
+        # Si aucun slot restant aujourd’hui -> jour suivant 08:00
+        if not placed:
+            cur = datetime.combine(day + timedelta(days=1), time(8, 0))
+
+    return segments
+    
 @app.route("/")
 @login_required
 def dashboard():
@@ -348,7 +412,36 @@ def dashboard():
             WHERE i.status IN ('planned','in_progress')
             ORDER BY i.scheduled_date ASC, i.scheduled_time ASC
         """)
+    # ===== SEGMENTATION pour le planning =====
+    segmented = []
+    for i in interventions:
+        title = i[0]
+        scheduled_date = i[1]
+        scheduled_time = i[2] or "08:00"
+        duration = i[3] or 60
+        priority = i[4]
+        equipement = i[5]
+        technicien = i[6]
+        client = i[7]
+        description = i[8]
+        orig_id = i[9]
 
+        start_dt = datetime.fromisoformat(f"{scheduled_date}T{scheduled_time}")
+        parts = split_into_work_segments(start_dt, int(duration))
+
+        for idx, (pstart, pend) in enumerate(parts):
+            segmented.append([
+                title,
+                pstart.isoformat(timespec="minutes"),
+                pend.isoformat(timespec="minutes"),
+                priority,
+                equipement,
+                technicien,
+                client,
+                description,
+                orig_id,   # id original
+                idx        # index segment
+            ])
     interventions = cursor.fetchall()
 
     # ==========================
@@ -415,7 +508,7 @@ def dashboard():
         nb_equipements=nb_equipements,
         en_cours=in_progress,
         planifiees=planned,
-        interventions=interventions,
+        interventions=segmented,
         maintenance_today=maintenance_today,
         equipements_etat=equipements_etat,
         clients=clients,
@@ -1005,6 +1098,7 @@ def modifier_client(id):
 if __name__ == "__main__":
     init_db()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+
 
 
 
