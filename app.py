@@ -195,6 +195,15 @@ def users():
 
     conn.close()
     return render_template("users.html", users=users)
+
+@app.route("/debug-users")
+def debug_users():
+    conn = sqlite3.connect("database.db")
+    cur = conn.cursor()
+    cur.execute("SELECT id, username, role FROM users")
+    users = cur.fetchall()
+    conn.close()
+    return str(users)
 # ==========================
 # Suppression compte
 # ==========================
@@ -994,4 +1003,5 @@ if __name__ == "__main__":
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+
 
