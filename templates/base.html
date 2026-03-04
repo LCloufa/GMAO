@@ -213,7 +213,23 @@ function openReportForm(id, startTime) {
     `;
 }
 </script>
+    
+<script>
+function openInterventionForm() {
 
+    fetch("/interventions/nouvelle")
+        .then(response => response.text())
+        .then(html => {
+
+            document.getElementById("drawerTitle").innerText = "Nouvelle intervention";
+
+            document.getElementById("drawerBody").innerHTML = html;
+
+            document.getElementById("drawer").classList.add("open");
+        });
+}
+</script>
+    
 {% if 'user_id' in session %}
 <div class="mobile-bottom-nav">
   <a href="/" class="{% if request.path=='/' %}active{% endif %}">🏠</a>
@@ -230,3 +246,4 @@ function openReportForm(id, startTime) {
 </body>
 
 </html>
+
