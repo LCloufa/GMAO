@@ -165,29 +165,24 @@ document.addEventListener('DOMContentLoaded', function() {
     const calendarEl = document.getElementById('calendar');
 
     const events = interventions.map(i => {
-
-        const start = i[1] + "T" + (i[2] || "08:00");
-        const durationMinutes = i[3] || 60;
-
-        const startDate = new Date(start);
-        const endDate = new Date(startDate.getTime() + durationMinutes*60000);
-
-        return {
-            id: i[9], // ID en dernière position
-            title: i[0],
-            start: startDate,
-            end: endDate,
-            backgroundColor: getColor(i[4]),
-            borderColor: getColor(i[4]),
-            extendedProps: {
-                equipement: i[5],
-                technicien: i[6],
-                client: i[7],
-                description: i[8],
-                priority: i[4]
-            }
-        };
-    });
+	  return {
+      // ID unique par segment, mais on garde l'id original dans extendedProps
+      id: `seg-${i[8]}-${i[9]}`,
+      title: i[0],
+      start: i[1],   // ISO start
+      end: i[2],     // ISO end
+      backgroundColor: getColor(i[3]),
+      borderColor: getColor(i[3]),
+      extendedProps: {
+        orig_id: i[8],
+        equipement: i[4],
+        technicien: i[5],
+        client: i[6],
+        description: i[7],
+        priority: i[3]
+      }
+	};
+  });
 
     const calendar = new FullCalendar.Calendar(calendarEl, {
 
@@ -515,3 +510,4 @@ window.setMonth = setMonth;
 
 
 {% endblock %}
+
