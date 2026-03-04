@@ -206,7 +206,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         eventClick: function(info) {
             console.log("CLICK EVENT", info.event.id); // test
-            openIntervention(info.event.id);
+            openIntervention(info.event.extendedProps.orig_id);
         }
 
     });
@@ -510,4 +510,5 @@ window.setMonth = setMonth;
 
 
 {% endblock %}
+
 
