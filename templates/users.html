@@ -17,14 +17,15 @@
         <td>{{ u[1] }}</td>
         <td>{{ u[2] }}</td>
         <td>
-            <a href="/users/delete/{{ u[0] }}"
-               onclick="return confirm('Supprimer cet utilisateur ?')"
-               class="btn-delete">
-               Supprimer
-            </a>
+<form method="POST" action="/users/delete/{{ u[0] }}" style="display:inline;">
+  <button class="btn-delete" type="submit" onclick="return confirm('Supprimer cet utilisateur ?')">
+    Supprimer
+  </button>
+</form>
         </td>
     </tr>
     {% endfor %}
 </table>
+
 
 {% endblock %}
