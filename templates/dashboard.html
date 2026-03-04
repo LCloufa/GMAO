@@ -199,6 +199,13 @@ document.addEventListener('DOMContentLoaded', function() {
             center: 'title',
             right: 'dayGridMonth,timeGridWeek,timeGridDay'
         },
+		businessHours: [
+  			{ daysOfWeek: [1,2,3,4,5], startTime: '08:00', endTime: '12:00' },
+  			{ daysOfWeek: [1,2,3,4,5], startTime: '13:00', endTime: '17:00' }
+		],
+		slotMinTime: '07:00',
+		slotMaxTime: '18:00',
+		eventConstraint: 'businessHours',
 
         events: events,
 
@@ -505,5 +512,6 @@ window.setMonth = setMonth;
 }
 
 </style>
+
 
 {% endblock %}
