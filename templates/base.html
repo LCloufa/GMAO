@@ -111,7 +111,7 @@
         <a href="/interventions">Interventions</a>
         <a href="/clients">Clients</a>
 
-        {% if session['role'] == 'admin' %}
+        {% if session.get('role') == 'admin' %}
             <a href="/users">Utilisateurs</a>
         {% endif %}
 
@@ -221,8 +221,12 @@ function openReportForm(id, startTime) {
   <a href="/equipements" class="{% if '/equipements' in request.path %}active{% endif %}">⚙</a>
   <a href="/clients" class="{% if '/clients' in request.path %}active{% endif %}">👥</a>
   <a href="/techniciens" class="{% if '/techniciens' in request.path %}active{% endif %}">🧰</a>
+    {% if session.get('role') == 'admin' %}
+        <a href="/users">Utilisateurs</a>
+    {% endif %}
 </div>
 {% endif %}
 
 </body>
+
 </html>
