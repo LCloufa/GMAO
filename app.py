@@ -412,6 +412,7 @@ def dashboard():
             WHERE i.status IN ('planned','in_progress')
             ORDER BY i.scheduled_date ASC, i.scheduled_time ASC
         """)
+    interventions = cursor.fetchall()
     # ===== SEGMENTATION pour le planning =====
     segmented = []
     for i in interventions:
@@ -442,8 +443,7 @@ def dashboard():
                 orig_id,   # id original
                 idx        # index segment
             ])
-    interventions = cursor.fetchall()
-
+    
     # ==========================
     # ETAT EQUIPEMENTS (ta logique actuelle)
     # ==========================
@@ -1098,6 +1098,7 @@ def modifier_client(id):
 if __name__ == "__main__":
     init_db()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+
 
 
 
