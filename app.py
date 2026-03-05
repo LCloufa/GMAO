@@ -11,7 +11,14 @@ from flask import Response
 app = Flask(__name__)
 app.secret_key = "cle_super_secrete_change_moi"
 ADMIN_ACCESS_KEY = "GMAO-2026-SECURE"
+OPERATOR_ACCESS_KEY = "GMAO-OP-2026"
+TECH_ACCESS_KEY = "GMAO-TECH-2026"
 
+def ensure_upload_dirs():
+    os.makedirs("static/uploads/pannes", exist_ok=True)
+    os.makedirs("static/uploads/photos", exist_ok=True)
+    os.makedirs("static/uploads/documents", exist_ok=True)
+    
 # ==========================
 # Protection routes
 # ==========================
@@ -123,7 +130,34 @@ def init_db():
         FOREIGN KEY (assigned_to) REFERENCES techniciens(id)
     )
     """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS declarations_panne (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        equipment_id INTEGER NOT NULL,
+        declared_by_user_id INTEGER,     -- opérateur (users.id)
+        declared_by_name TEXT,           -- optionnel: nom saisi
+        title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        urgency TEXT CHECK(urgency IN ('low','medium','high','critical')) DEFAULT 'medium',
+        location TEXT,
+        status TEXT CHECK(status IN ('pending','in_progress','resolved','rejected')) DEFAULT 'pending',
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT,
+        intervention_id INTEGER,         -- si une intervention a été créée depuis cette déclaration
+        FOREIGN KEY (equipment_id) REFERENCES equipements(id),
+        FOREIGN KEY (declared_by_user_id) REFERENCES users(id),
+        FOREIGN KEY (intervention_id) REFERENCES interventions(id)
+    )
+    """)
 
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS declaration_photos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        declaration_id INTEGER NOT NULL,
+        filepath TEXT NOT NULL,
+        FOREIGN KEY (declaration_id) REFERENCES declarations_panne(id)
+    )
+    """)
     conn.commit()
     conn.close()
 # ==========================
@@ -137,11 +171,15 @@ def register():
         password = generate_password_hash(request.form["password"])
         access_key = request.form.get("access_key")
 
-        role = "user"
+        role = "operator"  # par défaut : opérateur (logique GMAO)
 
         # Si clé admin valide
         if access_key == ADMIN_ACCESS_KEY:
             role = "admin"
+        elif access_key == TECH_ACCESS_KEY:
+            role = "technician"
+        elif access_key == OPERATOR_ACCESS_KEY:
+            role = "operator"
 
         conn = sqlite3.connect("database.db")
         cursor = conn.cursor()
@@ -1372,8 +1410,10 @@ def export_gmao_xlsx():
 # ==========================
 
 if __name__ == "__main__":
+    ensure_upload_dirs()
     init_db()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+
 
 
 
