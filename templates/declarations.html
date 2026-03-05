@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:22px;">
+  <div>
+    <h1 style="margin:0;">Déclarations de panne</h1>
+    <p style="margin:6px 0 0; color:#64748b;">
+      {{ declarations|length }} déclarations · <span style="color:#f59e0b; font-weight:600;">{{ k_pending }} en attente</span>
+    </p>
+  </div>
+
+  <a href="/declarations/nouvelle" class="btn-danger" style="text-decoration:none;">
+    ⚠ Déclarer une panne
+  </a>
+</div>
+
+<div class="cards" style="margin-bottom:18px;">
+  <div class="card"><h3>En attente</h3><p>{{ k_pending }}</p></div>
+  <div class="card"><h3>En cours</h3><p>{{ k_progress }}</p></div>
+  <div class="card"><h3>Résolue</h3><p>{{ k_resolved }}</p></div>
+  <div class="card"><h3>Rejetée</h3><p>{{ k_rejected }}</p></div>
+</div>
+
+<form method="GET" class="card" style="padding:16px; border-radius:16px; margin-bottom:18px;">
+  <div style="display:flex; gap:12px; align-items:center;">
+    <input name="q" value="{{ q }}" placeholder="Rechercher..." style="flex:1; margin:0;">
+    <select name="status" style="min-width:220px; margin:0;" onchange="this.form.submit()">
+      <option value="" {% if not status %}selected{% endif %}>Tous les statuts</option>
+      <option value="pending" {% if status=='pending' %}selected{% endif %}>En attente</option>
+      <option value="in_progress" {% if status=='in_progress' %}selected{% endif %}>En cours</option>
+      <option value="resolved" {% if status=='resolved' %}selected{% endif %}>Résolue</option>
+      <option value="rejected" {% if status=='rejected' %}selected{% endif %}>Rejetée</option>
+    </select>
+    <button class="btn-primary" type="submit">Filtrer</button>
+  </div>
+</form>
+
+{% for d in declarations %}
+  <div class="declaration-row">
+
+    <div style="display:flex; gap:14px; align-items:flex-start;">
+      <div class="decl-icon">
+        ⚠
+      </div>
+
+      <div style="min-width:0;">
+        <div style="font-weight:700; font-size:16px; color:#111827;">
+          {{ d[1] }}
+        </div>
+
+        <div style="color:#64748b; margin-top:2px;">
+          {{ d[7] }}{% if d[8] %} · {{ d[8] }}{% endif %}
+          · Par {{ d[9] if d[9] else (d[10] if d[10] else '-') }}
+        </div>
+
+        <div style="color:#334155; margin-top:8px; white-space:pre-line;">
+          {{ d[2] }}
+        </div>
+      </div>
+    </div>
+
+    <div style="text-align:right;">
+      <!-- Statut -->
+      {% if d[5] == "pending" %}
+        <span class="badge decl-status-pending">En attente</span>
+      {% elif d[5] == "in_progress" %}
+        <span class="badge decl-status-progress">En cours</span>
+      {% elif d[5] == "resolved" %}
+        <span class="badge decl-status-resolved">Résolue</span>
+      {% else %}
+        <span class="badge decl-status-rejected">Rejetée</span>
+      {% endif %}
+
+      <!-- Urgence -->
+      <div style="margin-top:10px;">
+        {% if d[3] == "low" %}
+          <span class="badge priority-low">Basse</span>
+        {% elif d[3] == "medium" %}
+          <span class="badge priority-medium">Moyenne</span>
+        {% elif d[3] == "high" %}
+          <span class="badge priority-high">Haute</span>
+        {% else %}
+          <span class="badge priority-critical">Critique</span>
+        {% endif %}
+      </div>
+
+      <div style="margin-top:10px; color:#94a3b8; font-size:13px;">
+        {{ d[6] }}
+      </div>
+
+      {% if session['role'] in ['technician','admin'] %}
+        <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
+          <a class="btn-secondary" style="text-decoration:none;"
+             href="/declarations/{{ d[0] }}/status/in_progress">Passer en cours</a>
+
+          <a class="btn-secondary" style="text-decoration:none;"
+             href="/declarations/{{ d[0] }}/status/resolved">Résoudre</a>
+
+          <a class="btn-secondary" style="text-decoration:none;"
+             href="/declarations/{{ d[0] }}/status/rejected">Rejeter</a>
+
+          {% if not d[11] %}
+            <a class="btn-primary" style="text-decoration:none;"
+               href="/declarations/{{ d[0] }}/create_intervention">Créer intervention</a>
+          {% else %}
+            <span class="badge status-in_progress">Intervention liée</span>
+          {% endif %}
+        </div>
+      {% endif %}
+
+    </div>
+
+  </div>
+{% endfor %}
+
+{% endblock %}
