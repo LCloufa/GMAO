@@ -3,6 +3,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import os
 from werkzeug.utils import secure_filename
+import csv
+from flask import Response
 app = Flask(__name__)
 app.secret_key = "cle_super_secrete_change_moi"
 ADMIN_ACCESS_KEY = "GMAO-2026-SECURE"
@@ -765,7 +767,35 @@ def fiche_equipement(id):
         equipement=equipement,
         documents=documents
     )
+@app.route("/export/equipements")
+@login_required
+def export_equipements():
 
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT e.nom,
+               e.code,
+               e.type,
+               e.statut,
+               e.emplacement,
+               c.nom
+        FROM equipements e
+        LEFT JOIN clients c ON e.client_id = c.id
+    """)
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    def generate():
+        yield "Nom,Code,Type,Statut,Emplacement,Client\n"
+        for r in rows:
+            yield ",".join([str(x) if x else "" for x in r]) + "\n"
+
+    return Response(generate(),
+        mimetype="text/csv",
+        headers={"Content-Disposition":"attachment;filename=equipements.csv"})
 # ==========================
 # TECHNICIENS
 # ==========================
@@ -1003,6 +1033,41 @@ def intervention_details(id):
         return {"error": "Not found"}, 404
 
     return dict(intervention)
+    
+@app.route("/export/interventions")
+@login_required
+def export_interventions():
+
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT i.title,
+               i.type,
+               i.priority,
+               i.status,
+               i.scheduled_date,
+               i.scheduled_time,
+               i.estimated_duration,
+               e.nom,
+               c.nom
+        FROM interventions i
+        LEFT JOIN equipements e ON i.equipment_id = e.id
+        LEFT JOIN clients c ON e.client_id = c.id
+    """)
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    def generate():
+        yield "Titre,Type,Priorité,Statut,Date,Heure,Durée(min),Equipement,Client\n"
+        for r in rows:
+            yield ",".join([str(x) if x else "" for x in r]) + "\n"
+
+    return Response(generate(),
+        mimetype="text/csv",
+        headers={"Content-Disposition":"attachment;filename=interventions.csv"})
+    
 # ==========================
 # Client
 # ==========================
@@ -1090,6 +1155,36 @@ def modifier_client(id):
     conn.close()
 
     return render_template("modifier_client.html", client=client)
+@app.route("/export/clients")
+@login_required
+def export_clients():
+
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT clients.nom,
+               clients.email,
+               clients.telephone,
+               COALESCE(SUM(interventions.estimated_duration),0)
+        FROM clients
+        LEFT JOIN equipements ON equipements.client_id = clients.id
+        LEFT JOIN interventions ON interventions.equipment_id = equipements.id
+        GROUP BY clients.id
+    """)
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    def generate():
+        yield "Nom,Email,Telephone,Heures_totales\n"
+        for r in rows:
+            heures = round(r[3] / 60, 2)
+            yield f"{r[0]},{r[1]},{r[2]},{heures}\n"
+
+    return Response(generate(),
+        mimetype="text/csv",
+        headers={"Content-Disposition":"attachment;filename=clients.csv"})
     
 # ==========================
 # Lancement
@@ -1098,6 +1193,7 @@ def modifier_client(id):
 if __name__ == "__main__":
     init_db()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+
 
 
 
