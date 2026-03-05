@@ -565,9 +565,9 @@ def add_equipement():
     cursor = conn.cursor()
 
     cursor.execute("""
-        INSERT INTO equipements (nom, type, numero_serie, localisation, client_id)
+        INSERT INTO equipements (nom, type, numero_serie, emplacement, client_id)
         VALUES (?, ?, ?, ?, ?)
-    """, (nom, type_eq, numero_serie, localisation, client_id))
+    """, (nom, type_eq, numero_serie, emplacement, client_id))
 
     conn.commit()
     conn.close()
@@ -1241,8 +1241,15 @@ def export_gmao_xlsx():
                 return wb[lower_map[n.lower()]]
         return None
 
-    ws_eq = get_sheet(["listing équipement", "listing equipement", "Listing Equipement", "Listing Équipement"])
-    ws_h  = get_sheet(["listing heures", "Listing Heures", "listing heure"])
+    ws_eq = get_sheet(["Listing équip", "Listing equip", "Listing équipement", "Listing equipement"])
+    ws_h  = get_sheet(["Listing heures", "Listing heure"])
+    ws_i  = get_sheet(["Listing inter", "Listing intervention", "Listing interventions"])
+    if not ws_eq:
+        return "Onglet introuvable: Listing équip", 500
+    if not ws_h:
+        return "Onglet introuvable: Listing heures", 500
+    if not ws_i:
+        return "Onglet introuvable: Listing intervention", 500
 
     # ======================
     # 3) Mapping couleur -> client
@@ -1263,48 +1270,35 @@ def export_gmao_xlsx():
             return None
 
     # ======================
-    # 4) Remplir “listing équipement”
+    # 4) Remplir “listing équipement” (par blocs de colonnes)
     # ======================
     if ws_eq:
-        # On parcourt les zones fusionnées : on cherche celles dont la cellule haut-gauche contient “Client”
-        for merged in ws_eq.merged_cells.ranges:
-            min_row = merged.min_row
-            min_col = merged.min_col
-            max_row = merged.max_row
+        BLOCKS = [
+            ("B", "F", "ROGA MECANIQUE"),
+            ("H", "L", "GALY AERO"),
+            ("N", "R", "GALY CND"),
+        ]
 
-            header_cell = ws_eq.cell(row=min_row, column=min_col)
-            header_text = str(header_cell.value or "").strip().lower()
+        def col_letter_to_index(letter: str) -> int:
+            return ord(letter.upper()) - ord("A") + 1
 
-            if "client" not in header_text:
-                continue
+        def find_header_row_in_block(ws, start_col, end_col, max_scan_rows=50):
+            # on cherche une ligne qui contient au moins 2 libellés connus
+            wanted = {"nom", "code", "type", "emplacement", "localisation", "n°série", "n° serie", "numero_serie", "numéro de série", "nserie", "n°serie"}
+            for r in range(1, max_scan_rows + 1):
+                hits = 0
+                for c in range(start_col, end_col + 1):
+                    v = str(ws.cell(r, c).value or "").strip().lower()
+                    if v in wanted or "série" in v or "serie" in v:
+                        hits += 1
+                if hits >= 2:
+                    return r
+            return None
 
-            rgb = cell_rgb(header_cell)
-            client_name = COLOR_TO_CLIENT.get(rgb)
-
-            if not client_name:
-                # si la couleur ne matche pas, on laisse “Client” (ou tu peux forcer ici)
-                continue
-
-            # écrire le nom client dans la cellule fusionnée (haut-gauche)
-            header_cell.value = client_name
-
-            # Trouver la ligne d’en-tête du tableau juste en dessous
-            # (on cherche une ligne contenant “Nom” ou “Code” etc.)
-            header_row = None
-            scan_start = max_row + 1
-            for r in range(scan_start, scan_start + 12):
-                values = [str(ws_eq.cell(r, c).value or "").strip().lower() for c in range(min_col, min_col + 15)]
-                if any(v in ("nom", "désignation", "designation") for v in values) or any(v == "code" for v in values):
-                    header_row = r
-                    break
-
-            if not header_row:
-                continue
-
-            # Identifier les colonnes par titre
+        def build_col_map(ws, header_row, start_col, end_col):
             col_map = {}
-            for c in range(min_col, min_col + 20):
-                t = str(ws_eq.cell(header_row, c).value or "").strip().lower()
+            for c in range(start_col, end_col + 1):
+                t = str(ws.cell(header_row, c).value or "").strip().lower()
                 if t in ("nom", "désignation", "designation"):
                     col_map["nom"] = c
                 elif t == "code":
@@ -1315,33 +1309,43 @@ def export_gmao_xlsx():
                     col_map["serie"] = c
                 elif "emplacement" in t or "localisation" in t:
                     col_map["empl"] = c
+            return col_map
 
+        # récupérer l’ID client correspondant au nom
+        def get_client_id_by_name(client_name: str):
+            for cid, cname in client_name_by_id.items():
+                if (cname or "").strip().lower() == client_name.strip().lower():
+                    return cid
+            return None
+
+        for startL, endL, client_name in BLOCKS:
+            start_col = col_letter_to_index(startL)
+            end_col = col_letter_to_index(endL)
+
+            header_row = find_header_row_in_block(ws_eq, start_col, end_col)
+            if not header_row:
+                continue
+
+            col_map = build_col_map(ws_eq, header_row, start_col, end_col)
             data_start = header_row + 1
 
-            # récupérer l’ID client correspondant au nom (ROGA MECANIQUE etc.)
-            client_id = None
-            for cid, cname in client_name_by_id.items():
-                if cname.strip().lower() == client_name.strip().lower():
-                    client_id = cid
-                    break
-
+            client_id = get_client_id_by_name(client_name)
             rows_to_write = equip_by_client.get(client_id, []) if client_id else []
 
-            # Nettoyer un bloc (ex: 200 lignes max) sans casser la mise en forme
+            # Nettoyage (sans casser la mise en forme)
             for r in range(data_start, data_start + 200):
-                for k, c in col_map.items():
+                for key, c in col_map.items():
                     ws_eq.cell(r, c).value = None
 
-            # Remplir
+            # Remplissage
             r = data_start
             for (nom, code, typ, serie, empl) in rows_to_write:
-                if "nom" in col_map:  ws_eq.cell(r, col_map["nom"]).value  = nom
-                if "code" in col_map: ws_eq.cell(r, col_map["code"]).value = code
-                if "type" in col_map: ws_eq.cell(r, col_map["type"]).value = typ
-                if "serie" in col_map:ws_eq.cell(r, col_map["serie"]).value= serie
-                if "empl" in col_map: ws_eq.cell(r, col_map["empl"]).value = empl
+                if "nom" in col_map:   ws_eq.cell(r, col_map["nom"]).value = nom
+                if "code" in col_map:  ws_eq.cell(r, col_map["code"]).value = code
+                if "type" in col_map:  ws_eq.cell(r, col_map["type"]).value = typ
+                if "serie" in col_map: ws_eq.cell(r, col_map["serie"]).value = serie
+                if "empl" in col_map:  ws_eq.cell(r, col_map["empl"]).value = empl
                 r += 1
-
     # ======================
     # 5) Remplir “listing heures”
     # ======================
@@ -1370,6 +1374,7 @@ def export_gmao_xlsx():
 if __name__ == "__main__":
     init_db()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+
 
 
 
