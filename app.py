@@ -1,5 +1,8 @@
 from flask import Flask, render_template, request, redirect, session, url_for
 from werkzeug.security import generate_password_hash, check_password_hash
+from flask import send_file
+from openpyxl import load_workbook
+from tempfile import NamedTemporaryFile
 import sqlite3
 import os
 from werkzeug.utils import secure_filename
@@ -1185,7 +1188,181 @@ def export_clients():
     return Response(generate(),
         mimetype="text/csv",
         headers={"Content-Disposition":"attachment;filename=clients.csv"})
-    
+# ==========================
+# Export
+# ==========================
+@app.route("/export/gmao-xlsx")
+@login_required
+def export_gmao_xlsx():
+
+    # ======================
+    # 1) DATA depuis SQLite
+    # ======================
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT id, nom FROM clients")
+    clients = cursor.fetchall()
+    client_name_by_id = {cid: nom for cid, nom in clients}
+
+    cursor.execute("""
+        SELECT client_id, nom, code, type, numero_serie, emplacement
+        FROM equipements
+        ORDER BY client_id, nom
+    """)
+    equipements = cursor.fetchall()
+
+    equip_by_client = {}
+    for client_id, nom, code, typ, serie, empl in equipements:
+        equip_by_client.setdefault(client_id, []).append((nom, code, typ, serie, empl))
+
+    cursor.execute("""
+        SELECT clients.id,
+               COALESCE(SUM(interventions.estimated_duration), 0) as total_minutes
+        FROM clients
+        LEFT JOIN equipements ON equipements.client_id = clients.id
+        LEFT JOIN interventions ON interventions.equipment_id = equipements.id
+        GROUP BY clients.id
+    """)
+    minutes_by_client = dict(cursor.fetchall())
+    hours_by_client = {cid: round((minutes_by_client.get(cid, 0) or 0) / 60, 2) for cid, _ in clients}
+
+    conn.close()
+
+    # ======================
+    # 2) Charger le modèle
+    # ======================
+    wb = load_workbook("GMAO.xlsx")
+
+    def get_sheet(name_candidates):
+        lower_map = {s.lower(): s for s in wb.sheetnames}
+        for n in name_candidates:
+            if n.lower() in lower_map:
+                return wb[lower_map[n.lower()]]
+        return None
+
+    ws_eq = get_sheet(["listing équipement", "listing equipement", "Listing Equipement", "Listing Équipement"])
+    ws_h  = get_sheet(["listing heures", "Listing Heures", "listing heure"])
+
+    # ======================
+    # 3) Mapping couleur -> client
+    # ======================
+    # ⚠️ Les codes RGB exacts peuvent varier selon Excel.
+    # Si ça ne matche pas du 1er coup, je te dis comment récupérer la bonne valeur.
+    COLOR_TO_CLIENT = {
+        "FF00B050": "ROGA MECANIQUE",  # vert
+        "FF0070C0": "GALY AERO",       # bleu
+        "FF7030A0": "GALY CND",        # violet
+    }
+
+    def cell_rgb(cell):
+        try:
+            c = cell.fill.fgColor
+            return c.rgb if c and c.type == "rgb" else None
+        except:
+            return None
+
+    # ======================
+    # 4) Remplir “listing équipement”
+    # ======================
+    if ws_eq:
+        # On parcourt les zones fusionnées : on cherche celles dont la cellule haut-gauche contient “Client”
+        for merged in ws_eq.merged_cells.ranges:
+            min_row = merged.min_row
+            min_col = merged.min_col
+            max_row = merged.max_row
+
+            header_cell = ws_eq.cell(row=min_row, column=min_col)
+            header_text = str(header_cell.value or "").strip().lower()
+
+            if "client" not in header_text:
+                continue
+
+            rgb = cell_rgb(header_cell)
+            client_name = COLOR_TO_CLIENT.get(rgb)
+
+            if not client_name:
+                # si la couleur ne matche pas, on laisse “Client” (ou tu peux forcer ici)
+                continue
+
+            # écrire le nom client dans la cellule fusionnée (haut-gauche)
+            header_cell.value = client_name
+
+            # Trouver la ligne d’en-tête du tableau juste en dessous
+            # (on cherche une ligne contenant “Nom” ou “Code” etc.)
+            header_row = None
+            scan_start = max_row + 1
+            for r in range(scan_start, scan_start + 12):
+                values = [str(ws_eq.cell(r, c).value or "").strip().lower() for c in range(min_col, min_col + 15)]
+                if any(v in ("nom", "désignation", "designation") for v in values) or any(v == "code" for v in values):
+                    header_row = r
+                    break
+
+            if not header_row:
+                continue
+
+            # Identifier les colonnes par titre
+            col_map = {}
+            for c in range(min_col, min_col + 20):
+                t = str(ws_eq.cell(header_row, c).value or "").strip().lower()
+                if t in ("nom", "désignation", "designation"):
+                    col_map["nom"] = c
+                elif t == "code":
+                    col_map["code"] = c
+                elif t == "type":
+                    col_map["type"] = c
+                elif "série" in t or "serie" in t:
+                    col_map["serie"] = c
+                elif "emplacement" in t or "localisation" in t:
+                    col_map["empl"] = c
+
+            data_start = header_row + 1
+
+            # récupérer l’ID client correspondant au nom (ROGA MECANIQUE etc.)
+            client_id = None
+            for cid, cname in client_name_by_id.items():
+                if cname.strip().lower() == client_name.strip().lower():
+                    client_id = cid
+                    break
+
+            rows_to_write = equip_by_client.get(client_id, []) if client_id else []
+
+            # Nettoyer un bloc (ex: 200 lignes max) sans casser la mise en forme
+            for r in range(data_start, data_start + 200):
+                for k, c in col_map.items():
+                    ws_eq.cell(r, c).value = None
+
+            # Remplir
+            r = data_start
+            for (nom, code, typ, serie, empl) in rows_to_write:
+                if "nom" in col_map:  ws_eq.cell(r, col_map["nom"]).value  = nom
+                if "code" in col_map: ws_eq.cell(r, col_map["code"]).value = code
+                if "type" in col_map: ws_eq.cell(r, col_map["type"]).value = typ
+                if "serie" in col_map:ws_eq.cell(r, col_map["serie"]).value= serie
+                if "empl" in col_map: ws_eq.cell(r, col_map["empl"]).value = empl
+                r += 1
+
+    # ======================
+    # 5) Remplir “listing heures”
+    # ======================
+    if ws_h:
+        # On cherche les lignes où le nom du client apparaît, puis on remplit la cellule à droite
+        for row in range(1, ws_h.max_row + 1):
+            for col in range(1, ws_h.max_column + 1):
+                v = str(ws_h.cell(row, col).value or "").strip().lower()
+                for cid, cname in client_name_by_id.items():
+                    if v == cname.strip().lower():
+                        # hypothèse : la colonne des heures est juste à droite
+                        ws_h.cell(row, col + 1).value = hours_by_client.get(cid, 0.0)
+
+    # ======================
+    # 6) Retour fichier
+    # ======================
+    tmp = NamedTemporaryFile(delete=False, suffix=".xlsx")
+    wb.save(tmp.name)
+    tmp.close()
+
+    return send_file(tmp.name, as_attachment=True, download_name="Export_GMAO.xlsx")
 # ==========================
 # Lancement
 # ==========================
@@ -1193,6 +1370,7 @@ def export_clients():
 if __name__ == "__main__":
     init_db()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+
 
 
 
