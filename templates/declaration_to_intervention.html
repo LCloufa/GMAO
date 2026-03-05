@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1 style="margin-bottom:18px;">Créer une intervention</h1>
+
+<div class="card" style="max-width:1000px; margin-bottom:18px;">
+  <h3 style="margin-top:0;">Depuis la déclaration #{{ dec[0] }}</h3>
+  <p style="color:#64748b; margin:6px 0 0;">
+    Équipement : <strong>{{ dec[6] }}</strong>{% if dec[7] %} ({{ dec[7] }}){% endif %}
+  </p>
+</div>
+
+<div class="card" style="max-width:1000px;">
+  <form method="POST" class="form">
+
+    <div style="margin-bottom:20px;">
+      <input type="text" name="title" required style="width:100%;" value="{{ prefilled_title }}">
+    </div>
+
+    <div class="form-row">
+      <select name="assigned_to">
+        <option value="">Technicien</option>
+        {% for t in techniciens %}
+          <option value="{{ t[0] }}">{{ t[1] }}</option>
+        {% endfor %}
+      </select>
+
+      <select name="priority">
+        <option value="low" {% if default_priority=='low' %}selected{% endif %}>Basse</option>
+        <option value="medium" {% if default_priority=='medium' %}selected{% endif %}>Moyenne</option>
+        <option value="high" {% if default_priority=='high' %}selected{% endif %}>Haute</option>
+        <option value="critical" {% if default_priority=='critical' %}selected{% endif %}>Critique</option>
+      </select>
+    </div>
+
+    <div class="form-row">
+      <input type="date" name="scheduled_date" required>
+      <input type="time" name="scheduled_time">
+      <input type="number" name="estimated_duration_hours" step="0.01" min="0" required placeholder="Durée (heures)">
+    </div>
+
+    <div style="margin-top:20px;">
+      <textarea name="description" rows="5"
+        style="width:100%; padding:10px; border-radius:10px; border:1px solid #e2e8f0;"
+      >{{ prefilled_desc }}</textarea>
+    </div>
+
+    <div class="actions-row" style="margin-top:25px; justify-content:flex-end;">
+      <a href="/declarations" style="text-decoration:none; color:#64748b; margin-right:20px;">Annuler</a>
+      <button class="btn-primary" type="submit">Créer l’intervention</button>
+    </div>
+
+  </form>
+</div>
+
+{% endblock %}
