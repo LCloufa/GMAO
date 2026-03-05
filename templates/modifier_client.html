@@ -5,6 +5,7 @@
 
 <div class="card" style="max-width:500px;">
     <form method="POST" class="form">
+		<form method="POST" autocomplete="off">
 
         <label>Nom</label>
         <input type="text" name="nom" value="{{ client['nom'] }}" required>
@@ -25,5 +26,6 @@
 
     </form>
 </div>
+
 
 {% endblock %}
