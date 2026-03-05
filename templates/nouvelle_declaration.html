@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1 style="margin-bottom:18px;">Déclarer une panne</h1>
+
+<div class="card" style="max-width:900px;">
+  <form method="POST" enctype="multipart/form-data" class="form">
+
+    <div class="form-row">
+      <div class="floating-group">
+        <input class="floating-input" name="declared_by_name" placeholder=" " value="{{ session['username'] }}">
+        <label class="floating-label">Votre nom (optionnel)</label>
+      </div>
+
+      <select name="equipment_id" required>
+        <option value="">Équipement concerné *</option>
+        {% for eq in equipements %}
+          <option value="{{ eq[0] }}">{{ eq[1] }}{% if eq[2] %} ({{ eq[2] }}){% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div style="margin-bottom:18px;">
+      <input type="text" name="title" placeholder="Titre de la panne * (ex: arrêt machine, bruit anormal...)" required style="width:100%;">
+    </div>
+
+    <div style="margin-bottom:18px;">
+      <textarea name="description" required rows="4"
+        placeholder="Bref descriptif : symptômes, depuis quand, impact..."
+        style="width:100%; padding:10px; border-radius:10px; border:1px solid #e2e8f0;"></textarea>
+    </div>
+
+    <div class="form-row">
+      <select name="urgency">
+        <option value="low">Urgence : Basse</option>
+        <option value="medium" selected>Urgence : Moyenne</option>
+        <option value="high">Urgence : Haute</option>
+        <option value="critical">Urgence : Critique</option>
+      </select>
+
+      <div class="floating-group">
+        <input class="floating-input" name="location" placeholder=" ">
+        <label class="floating-label">Localisation (atelier, zone, ligne...)</label>
+      </div>
+    </div>
+
+    <div style="margin-top:10px;">
+      <label class="upload-btn">
+        📷 Ajouter des photos (optionnel)
+        <input type="file" name="photos" multiple accept="image/*" hidden>
+      </label>
+      <div class="file-name">Vous pouvez sélectionner plusieurs images</div>
+    </div>
+
+    <div class="actions-row" style="margin-top:25px; justify-content:flex-end;">
+      <a href="/declarations" style="text-decoration:none; color:#64748b; margin-right:20px;">Annuler</a>
+      <button type="submit" class="btn-danger">Déclarer la panne</button>
+    </div>
+
+  </form>
+</div>
+
+{% endblock %}
