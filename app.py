@@ -1074,6 +1074,250 @@ def intervention_details(id):
         return {"error": "Not found"}, 404
 
     return dict(intervention)
+from flask import send_from_directory
+
+def role_required(*roles):
+    def decorator(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            if "user_id" not in session:
+                return redirect("/login")
+            if session.get("role") not in roles:
+                return "Accès refusé", 403
+            return f(*args, **kwargs)
+        return wrapped
+    return decorator
+
+
+@app.route("/declarations")
+@login_required
+def declarations():
+
+    q = request.args.get("q", "").strip()
+    status = request.args.get("status", "").strip()
+
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+
+    # KPIs
+    cursor.execute("SELECT COUNT(*) FROM declarations_panne WHERE status='pending'")
+    k_pending = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM declarations_panne WHERE status='in_progress'")
+    k_progress = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM declarations_panne WHERE status='resolved'")
+    k_resolved = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM declarations_panne WHERE status='rejected'")
+    k_rejected = cursor.fetchone()[0]
+
+    query = """
+        SELECT d.id,
+               d.title,
+               d.description,
+               d.urgency,
+               d.location,
+               d.status,
+               d.created_at,
+               e.nom,
+               e.code,
+               u.username,
+               d.declared_by_name,
+               d.intervention_id
+        FROM declarations_panne d
+        LEFT JOIN equipements e ON d.equipment_id = e.id
+        LEFT JOIN users u ON d.declared_by_user_id = u.id
+        WHERE 1=1
+    """
+    params = []
+
+    if status:
+        query += " AND d.status = ?"
+        params.append(status)
+
+    if q:
+        query += " AND (d.title LIKE ? OR d.description LIKE ? OR e.nom LIKE ? OR e.code LIKE ?)"
+        like = f"%{q}%"
+        params += [like, like, like, like]
+
+    query += " ORDER BY d.created_at DESC"
+
+    cursor.execute(query, params)
+    declarations = cursor.fetchall()
+
+    conn.close()
+
+    return render_template(
+        "declarations.html",
+        declarations=declarations,
+        q=q,
+        status=status,
+        k_pending=k_pending,
+        k_progress=k_progress,
+        k_resolved=k_resolved,
+        k_rejected=k_rejected
+    )
+    
+@app.route("/declarations/nouvelle", methods=["GET", "POST"])
+@login_required
+@role_required("operator", "admin", "technician")  # un tech peut aussi déclarer si besoin
+def nouvelle_declaration():
+
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+
+    if request.method == "POST":
+
+        equipment_id = request.form["equipment_id"]
+        declared_by_name = request.form.get("declared_by_name", "").strip()
+        title = request.form["title"]
+        description = request.form["description"]
+        urgency = request.form.get("urgency", "medium")
+        location = request.form.get("location", "").strip()
+
+        cursor.execute("""
+            INSERT INTO declarations_panne
+            (equipment_id, declared_by_user_id, declared_by_name, title, description, urgency, location)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            equipment_id,
+            session.get("user_id"),
+            declared_by_name,
+            title,
+            description,
+            urgency,
+            location
+        ))
+
+        declaration_id = cursor.lastrowid
+
+        # Photos (optionnel)
+        photos = request.files.getlist("photos")
+        for p in photos:
+            if p and p.filename:
+                filename = secure_filename(p.filename)
+                filepath = f"static/uploads/pannes/{declaration_id}_{filename}"
+                p.save(filepath)
+                cursor.execute("""
+                    INSERT INTO declaration_photos (declaration_id, filepath)
+                    VALUES (?, ?)
+                """, (declaration_id, filepath))
+
+        conn.commit()
+        conn.close()
+
+        return redirect("/declarations")
+
+    cursor.execute("SELECT id, nom, code FROM equipements ORDER BY nom ASC")
+    equipements = cursor.fetchall()
+
+    conn.close()
+    return render_template("nouvelle_declaration.html", equipements=equipements)
+
+
+@app.route("/declarations/<int:id>/status/<status>")
+@login_required
+@role_required("technician", "admin")
+def declaration_set_status(id, status):
+
+    if status not in ("pending", "in_progress", "resolved", "rejected"):
+        return "Statut invalide", 400
+
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        UPDATE declarations_panne
+        SET status=?, updated_at=datetime('now')
+        WHERE id=?
+    """, (status, id))
+
+    conn.commit()
+    conn.close()
+    return redirect("/declarations")
+
+
+@app.route("/declarations/<int:id>/create_intervention", methods=["GET", "POST"])
+@login_required
+@role_required("technician", "admin")
+def declaration_create_intervention(id):
+
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+
+    # Récup déclaration
+    cursor.execute("""
+        SELECT d.id, d.title, d.description, d.urgency, d.location, d.equipment_id,
+               e.nom, e.code
+        FROM declarations_panne d
+        LEFT JOIN equipements e ON d.equipment_id = e.id
+        WHERE d.id=?
+    """, (id,))
+    dec = cursor.fetchone()
+    if not dec:
+        conn.close()
+        return "Déclaration introuvable", 404
+
+    cursor.execute("SELECT id, nom FROM techniciens WHERE statut='Actif'")
+    techniciens = cursor.fetchall()
+
+    if request.method == "POST":
+
+        title = request.form["title"]
+        assigned_to = request.form.get("assigned_to") or None
+        scheduled_date = request.form["scheduled_date"]
+        scheduled_time = request.form.get("scheduled_time") or None
+        priority = request.form.get("priority", "medium")
+        description = request.form.get("description", "")
+
+        # durée heures -> minutes (comme ton code)
+        duration_hours = float(request.form.get("estimated_duration_hours", 0) or 0)
+        duration_minutes = int(duration_hours * 60)
+
+        cursor.execute("""
+            INSERT INTO interventions
+            (title, equipment_id, type, priority, status, scheduled_date, scheduled_time, assigned_to, estimated_duration, description)
+            VALUES (?, ?, 'corrective', ?, 'planned', ?, ?, ?, ?, ?)
+        """, (
+            title,
+            dec[5],
+            priority,
+            scheduled_date,
+            scheduled_time,
+            assigned_to,
+            duration_minutes,
+            description
+        ))
+        intervention_id = cursor.lastrowid
+
+        # Lier + passer la déclaration en "in_progress"
+        cursor.execute("""
+            UPDATE declarations_panne
+            SET intervention_id=?, status='in_progress', updated_at=datetime('now')
+            WHERE id=?
+        """, (intervention_id, id))
+
+        conn.commit()
+        conn.close()
+
+        return redirect("/interventions")
+
+    # GET: pré-remplissage “smart”
+    default_priority = dec[3]  # urgency -> priority (mêmes valeurs)
+    prefilled_title = f"[Panne] {dec[1]}"
+
+    prefilled_desc = (dec[2] or "")
+    if dec[4]:
+        prefilled_desc = f"Localisation: {dec[4]}\n\n" + prefilled_desc
+
+    conn.close()
+
+    return render_template(
+        "declaration_to_intervention.html",
+        dec=dec,
+        techniciens=techniciens,
+        default_priority=default_priority,
+        prefilled_title=prefilled_title,
+        prefilled_desc=prefilled_desc
+    )
     
 @app.route("/export/interventions")
 @login_required
@@ -1413,6 +1657,7 @@ if __name__ == "__main__":
     ensure_upload_dirs()
     init_db()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+
 
 
 
