@@ -86,9 +86,12 @@
 }
 
 </style>
+    <meta name="autocomplete" content="off">
 </head>
 <body>
 
+<body autocomplete="off">
+    
 <!-- ✅ Topbar mobile -->
 <div class="mobile-topbar">
   <button class="icon-btn" onclick="toggleMobileMenu()">☰</button>
@@ -182,6 +185,7 @@ function openReportForm(id, startTime) {
 
     document.getElementById("drawerBody").innerHTML = `
         <form method="POST" action="/rapports/add">
+        <form method="POST" autocomplete="off">
 
             <input type="hidden" name="intervention_id" value="${id}">
 
@@ -247,5 +251,6 @@ function openInterventionForm() {
 </body>
 
 </html>
+
 
 
