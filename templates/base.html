@@ -161,22 +161,6 @@ function toggleMobileMenu() {
     document.body.classList.toggle("mobile-menu-open", isOpen);
 }
 
-function toggleDesktopSidebar() {
-    if (window.innerWidth <= 900) return;
-
-    document.body.classList.toggle("sidebar-collapsed");
-    syncDesktopSidebarButton();
-}
-
-function syncDesktopSidebarButton() {
-    const toggleBtn = document.getElementById("desktopSidebarToggle");
-    if (!toggleBtn) return;
-
-    const isCollapsed = document.body.classList.contains("sidebar-collapsed");
-    toggleBtn.textContent = isCollapsed ? "▶" : "◀";
-    toggleBtn.title = isCollapsed ? "Ouvrir le menu" : "Rétracter le menu";
-}
-
 function closeMobileMenu() {
     const sidebar = document.getElementById("sidebar");
     const overlay = document.getElementById("mobileOverlay");
@@ -203,13 +187,8 @@ document.addEventListener("click", function (event) {
 window.addEventListener("resize", function () {
     if (window.innerWidth > 900) {
         closeMobileMenu();
-    } else {
-        document.body.classList.remove("sidebar-collapsed");
     }
-    syncDesktopSidebarButton();
 });
-
-document.addEventListener("DOMContentLoaded", syncDesktopSidebarButton);
 
 function openIntervention(id) {
 

@@ -603,10 +603,6 @@ tr:hover {
 /* ✅ BREAKPOINT MOBILE */
 @media (max-width: 900px){
 
-  .desktop-sidebar-toggle{
-    display:none;
-  }
-
   body {
     background: #f8fafc;
     font-size:14px;
