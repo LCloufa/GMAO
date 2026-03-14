@@ -88,8 +88,6 @@
 </style>
     <meta name="autocomplete" content="off">
 </head>
-<body>
-
 <body autocomplete="off">
     
 <!-- ✅ Topbar mobile -->
@@ -101,6 +99,9 @@
 
 <!-- ✅ Overlay -->
 <div id="mobileOverlay" class="mobile-overlay" onclick="closeMobileMenu()"></div>
+
+<!-- ✅ Toggle desktop sidebar -->
+<button id="desktopSidebarToggle" class="desktop-sidebar-toggle" onclick="toggleDesktopSidebar()" title="Rétracter le menu">◀</button>
 
 <div class="layout">
 
@@ -148,6 +149,82 @@
 </div>
 
 <script>
+function toggleMobileMenu() {
+    const sidebar = document.getElementById("sidebar");
+    const overlay = document.getElementById("mobileOverlay");
+    if (!sidebar || !overlay) return;
+
+    const isOpen = sidebar.classList.toggle("open");
+    overlay.classList.toggle("show", isOpen);
+    document.body.classList.toggle("mobile-menu-open", isOpen);
+}
+
+function toggleDesktopSidebar() {
+    if (window.innerWidth <= 900) return;
+
+    document.body.classList.toggle("sidebar-collapsed");
+    syncDesktopSidebarButton();
+}
+
+function syncDesktopSidebarButton() {
+    const toggleBtn = document.getElementById("desktopSidebarToggle");
+    if (!toggleBtn) return;
+
+    const isCollapsed = document.body.classList.contains("sidebar-collapsed");
+    toggleBtn.textContent = isCollapsed ? "▶" : "◀";
+    toggleBtn.title = isCollapsed ? "Ouvrir le menu" : "Rétracter le menu";
+}
+
+function closeMobileMenu() {
+    const sidebar = document.getElementById("sidebar");
+    const overlay = document.getElementById("mobileOverlay");
+    if (!sidebar || !overlay) return;
+
+    sidebar.classList.remove("open");
+    overlay.classList.remove("show");
+    document.body.classList.remove("mobile-menu-open");
+}
+
+document.addEventListener("click", function (event) {
+    const sidebar = document.getElementById("sidebar");
+    const menuBtn = document.querySelector(".mobile-topbar .icon-btn");
+    if (!sidebar || !menuBtn || window.innerWidth > 900) return;
+
+    const clickedInsideSidebar = sidebar.contains(event.target);
+    const clickedMenuButton = menuBtn.contains(event.target);
+
+    if (sidebar.classList.contains("open") && !clickedInsideSidebar && !clickedMenuButton) {
+        closeMobileMenu();
+    }
+});
+
+document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") {
+        closeMobileMenu();
+    }
+});
+
+window.addEventListener("resize", function () {
+    if (window.innerWidth > 900) {
+        closeMobileMenu();
+    } else {
+        document.body.classList.remove("sidebar-collapsed");
+    }
+    syncDesktopSidebarButton();
+});
+
+document.addEventListener("DOMContentLoaded", function () {
+    syncDesktopSidebarButton();
+
+    document.querySelectorAll("#sidebar a").forEach(function (link) {
+        link.addEventListener("click", function () {
+            if (window.innerWidth <= 900) {
+                closeMobileMenu();
+            }
+        });
+    });
+});
+
 function openIntervention(id) {
 
     console.log("CLICK OK :", id);
