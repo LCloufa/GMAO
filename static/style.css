@@ -902,3 +902,214 @@ tr:hover {
 .decl-status-progress { background:#dbeafe; color:#1e40af; }
 .decl-status-resolved { background:#dcfce7; color:#166534; }
 .decl-status-rejected { background:#fee2e2; color:#991b1b; }
+
+
+/* ===== Fiche équipement (slide moderne) ===== */
+.equipment-showcase {
+    max-width: 1080px;
+    background: linear-gradient(145deg, #ffffff, #f8fbff);
+    border: 1px solid #e2e8f0;
+}
+
+.equipment-hero-image {
+    width: 100%;
+    max-height: 260px;
+    object-fit: cover;
+    border-radius: 14px;
+    margin-bottom: 20px;
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12);
+}
+
+.equipment-slide-shell {
+    position: relative;
+    overflow: hidden;
+    border-radius: 16px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+}
+
+.equipment-slide-track {
+    display: flex;
+    transition: transform 0.35s ease;
+}
+
+.equipment-slide-panel {
+    min-width: 100%;
+    padding: 34px 62px;
+    box-sizing: border-box;
+}
+
+.equipment-slide-subtitle {
+    margin: 0;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #64748b;
+    font-weight: 700;
+}
+
+.equipment-slide-panel h2 {
+    margin: 8px 0 20px;
+    color: #0f172a;
+    font-size: 29px;
+}
+
+.equipment-data-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.equipment-data-grid.single-column {
+    grid-template-columns: 1fr;
+}
+
+.equipment-data-item {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px 18px;
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.05);
+}
+
+.equipment-label {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748b;
+    margin-bottom: 8px;
+}
+
+.equipment-data-item p {
+    margin: 0;
+    color: #0f172a;
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.3;
+    word-break: break-word;
+}
+
+.equipment-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 999px;
+    background: #dbeafe;
+    color: #1d4ed8;
+    padding: 6px 14px;
+    font-size: 14px;
+}
+
+.equipment-docs-section {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid #e2e8f0;
+}
+
+.equipment-docs-section h3 {
+    margin: 0 0 10px;
+    color: #334155;
+}
+
+.equipment-doc-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 10px;
+}
+
+.equipment-doc-list a {
+    display: block;
+    text-decoration: none;
+    color: #1d4ed8;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 10px;
+    padding: 10px 12px;
+}
+
+.equipment-doc-list a:hover {
+    background: #dbeafe;
+}
+
+.equipment-empty-docs {
+    margin: 0;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.equipment-slide-control {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    border: 1px solid #d1d5db;
+    background: rgba(255, 255, 255, 0.95);
+    color: #334155;
+    font-size: 18px;
+    font-weight: 700;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+}
+
+.equipment-slide-control.prev { left: 12px; }
+.equipment-slide-control.next { right: 12px; }
+
+.equipment-slide-control:hover {
+    background: white;
+    color: #2563eb;
+}
+
+.equipment-slide-dots {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 0 18px;
+}
+
+.equipment-slide-dots button {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    border: none;
+    background: #cbd5e1;
+    padding: 0;
+    opacity: 0.9;
+}
+
+.equipment-slide-dots button.active {
+    width: 24px;
+    background: #2563eb;
+}
+
+@media (max-width: 900px) {
+    .equipment-slide-panel {
+        padding: 26px 20px 24px;
+    }
+
+    .equipment-slide-control {
+        top: auto;
+        bottom: 14px;
+        transform: none;
+    }
+
+    .equipment-slide-control.prev { left: 16px; }
+    .equipment-slide-control.next { right: 16px; }
+
+    .equipment-data-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .equipment-data-item p {
+        font-size: 20px;
+    }
+}
