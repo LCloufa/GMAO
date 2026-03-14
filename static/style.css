@@ -569,7 +569,11 @@ tr:hover {
 /* ✅ BREAKPOINT MOBILE */
 @media (max-width: 900px){
 
-  body { background: #f8fafc; }
+  body {
+    background: #f8fafc;
+    font-size:14px;
+    line-height:1.35;
+  }
 
   /* Topbar */
   .mobile-topbar{
@@ -602,7 +606,7 @@ tr:hover {
     flex-direction:column;
   }
   .main{
-    padding:16px;
+    padding:12px;
     padding-bottom:86px; /* place pour bottom-nav */
   }
 
@@ -616,6 +620,7 @@ tr:hover {
     z-index:3500;
     transition:left .25s ease;
     padding-top:70px; /* pour laisser respirer sous topbar */
+    overflow-y:auto;
   }
   .sidebar.open{
     left:0;
@@ -640,25 +645,42 @@ tr:hover {
   /* Cards en colonne */
   .cards{
     flex-direction:column;
-    gap:12px;
+    gap:10px;
   }
   .card{
-    padding:18px;
+    padding:14px;
     min-width:auto;
+    border-radius:12px;
   }
   .card p{
-    font-size:26px;
+    font-size:22px;
   }
 
   /* Form */
   .form-row{
     flex-direction:column;
-    gap:12px;
+    gap:8px;
+    margin-bottom:12px;
   }
   .form input,
   .form select{
     width:100%;
     margin-right:0;
+    margin-bottom:8px;
+    padding:9px 10px;
+    font-size:14px;
+  }
+
+  button,
+  .btn-primary,
+  .btn-danger,
+  .btn-secondary,
+  .btn-success,
+  .btn-edit,
+  .btn-delete{
+    padding:8px 12px;
+    font-size:13px;
+    border-radius:8px;
   }
 
   /* Tables */
@@ -666,7 +688,33 @@ tr:hover {
     display:block;
     width:100%;
     overflow-x:auto;
-    border-radius:16px;
+    border-radius:12px;
+  }
+  th, td{
+    padding:10px 8px;
+    font-size:13px;
+  }
+
+  .sidebar h1{
+    font-size:18px;
+    margin-bottom:18px;
+  }
+  .sidebar a{
+    padding:9px 10px;
+    margin-bottom:4px;
+    font-size:13px;
+  }
+  .actions-wrapper,
+  .top-actions,
+  .actions-row{
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  .declaration-row{
+    padding:12px;
+    border-radius:12px;
+    gap:10px;
+    margin-bottom:10px;
   }
 
   /* Gantt / calendar */
