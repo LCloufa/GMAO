@@ -1170,7 +1170,6 @@ def nouvelle_declaration():
         declared_by_name = request.form.get("declared_by_name", "").strip()
         title = request.form["title"]
         description = request.form["description"]
-        urgency = request.form.get("urgency", "medium")
         location = request.form.get("location", "").strip()
 
         cursor.execute("""
@@ -1183,7 +1182,7 @@ def nouvelle_declaration():
             declared_by_name,
             title,
             description,
-            urgency,
+            "medium",
             location
         ))
 
