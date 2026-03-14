@@ -564,22 +564,59 @@ def dashboard():
 @app.route("/equipements")
 @login_required
 def equipements():
+    recherche = request.args.get("q", "").strip()
+    client_filtre = request.args.get("client_id", "").strip()
+
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
 
-    cursor.execute("""
+    query = """
         SELECT equipements.id,
                equipements.nom,
                equipements.type,
                equipements.numero_serie,
                equipements.emplacement,
+               equipements.code,
+               equipements.statut,
+               clients.id,
                clients.nom
         FROM equipements
         LEFT JOIN clients ON equipements.client_id = clients.id
-    """)
+    """
+
+    conditions = []
+    params = []
+
+    if recherche:
+        conditions.append("""(
+            LOWER(equipements.nom) LIKE ?
+            OR LOWER(COALESCE(equipements.code, '')) LIKE ?
+            OR LOWER(COALESCE(equipements.type, '')) LIKE ?
+            OR LOWER(COALESCE(equipements.numero_serie, '')) LIKE ?
+            OR LOWER(COALESCE(equipements.emplacement, '')) LIKE ?
+            OR LOWER(COALESCE(clients.nom, '')) LIKE ?
+        )""")
+        term = f"%{recherche.lower()}%"
+        params.extend([term] * 6)
+
+    if client_filtre:
+        conditions.append("clients.id = ?")
+        params.append(client_filtre)
+
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
+
+    query += " ORDER BY COALESCE(clients.nom, 'Sans client') ASC, equipements.nom ASC"
+
+    cursor.execute(query, params)
     equipements = cursor.fetchall()
 
-    cursor.execute("SELECT id, nom FROM clients")
+    equipements_par_client = {}
+    for eq in equipements:
+        client_nom = eq[8] if eq[8] else "Sans client"
+        equipements_par_client.setdefault(client_nom, []).append(eq)
+
+    cursor.execute("SELECT id, nom FROM clients ORDER BY nom ASC")
 
     clients = cursor.fetchall()
 
@@ -588,7 +625,10 @@ def equipements():
     return render_template(
         "equipements.html",
         equipements=equipements,
-        clients=clients
+        equipements_par_client=equipements_par_client,
+        clients=clients,
+        recherche=recherche,
+        client_filtre=client_filtre
     )
 
 @app.route("/equipements/add", methods=["POST"])
