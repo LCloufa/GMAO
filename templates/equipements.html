@@ -2,36 +2,101 @@
 
 {% block content %}
 
-<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:30px;">
-    <h1>Gestion des équipements</h1>
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:30px; gap:16px; flex-wrap:wrap;">
+    <h1 style="margin:0;">Gestion des équipements</h1>
 
     <a href="/equipements/nouveau" class="btn-primary">
         + Nouvel équipement
     </a>
 </div>
-<table>
-    <tr>
-	<th>Client</th>
-        <th>Nom</th>
-        <th>Type</th>
-        <th>Série</th>
-        <th>Localisation</th>
-    </tr>
 
-    {% for eq in equipements %}
-    <tr 
-    onclick="handleClick(event, {{ eq[0] }})"
-    style="cursor:pointer;">
-        <td>{{ eq[5] if eq[5] else "-" }}</td>
-	<td>{{ eq[1] }}</td>
-        <td>{{ eq[2] }}</td>
-        <td>{{ eq[3] }}</td>
-        <td>{{ eq[4] }}</td>
-    </tr>
+<form id="equipmentFilters" method="get" action="/equipements" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin-bottom:24px;">
+    <div style="display:flex; flex-direction:column; min-width:260px; flex:1;">
+        <label for="q" style="font-weight:600; margin-bottom:6px;">Recherche</label>
+        <input id="q"
+               name="q"
+               type="text"
+               value="{{ recherche }}"
+               placeholder="Nom, code, type, série, emplacement, client..."
+               style="padding:10px; border:1px solid #ddd; border-radius:8px;">
+    </div>
+
+    <div style="display:flex; flex-direction:column; min-width:220px;">
+        <label for="client_id" style="font-weight:600; margin-bottom:6px;">Client</label>
+        <select id="client_id" name="client_id" style="padding:10px; border:1px solid #ddd; border-radius:8px;">
+            <option value="">Tous les clients</option>
+            {% for c in clients %}
+                <option value="{{ c[0] }}" {% if client_filtre == c[0]|string %}selected{% endif %}>{{ c[1] }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div style="display:flex; gap:8px;">
+        {% if recherche or client_filtre %}
+            <a href="/equipements" class="btn-secondary">Réinitialiser</a>
+        {% endif %}
+    </div>
+</form>
+
+{% if equipements_par_client %}
+    {% for client_nom, equipements_client in equipements_par_client.items() %}
+    <section style="margin-bottom:28px;">
+        <h2 style="margin-bottom:10px;">{{ client_nom }} ({{ equipements_client|length }})</h2>
+
+        <table>
+            <tr>
+                <th>Nom</th>
+                <th>Code</th>
+                <th>Type</th>
+                <th>Série</th>
+                <th>Statut</th>
+                <th>Localisation</th>
+            </tr>
+
+            {% for eq in equipements_client %}
+            <tr onclick="handleClick(event, {{ eq[0] }})" style="cursor:pointer;">
+                <td>{{ eq[1] }}</td>
+                <td>{{ eq[5] if eq[5] else "-" }}</td>
+                <td>{{ eq[2] if eq[2] else "-" }}</td>
+                <td>{{ eq[3] if eq[3] else "-" }}</td>
+                <td>{{ eq[6] if eq[6] else "-" }}</td>
+                <td>{{ eq[4] if eq[4] else "-" }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </section>
     {% endfor %}
-</table>
+{% else %}
+    <p style="padding:14px; border:1px solid #eee; border-radius:8px; background:#fafafa;">
+        Aucun équipement trouvé avec les filtres actuels.
+    </p>
+{% endif %}
+
 <script>
 let clickTimer = null;
+
+const filterForm = document.getElementById("equipmentFilters");
+const searchInput = document.getElementById("q");
+const clientSelect = document.getElementById("client_id");
+let filterTimer = null;
+
+function submitFilters() {
+    if (filterForm) {
+        filterForm.requestSubmit();
+    }
+}
+
+if (searchInput) {
+    searchInput.addEventListener("input", function() {
+        clearTimeout(filterTimer);
+        filterTimer = setTimeout(submitFilters, 300);
+    });
+}
+
+if (clientSelect) {
+    clientSelect.addEventListener("change", submitFilters);
+}
+
 
 function handleClick(event, id) {
 
@@ -47,43 +112,6 @@ function handleClick(event, id) {
             window.location.href = "/equipements/" + id;
             clickTimer = null;
         }, 250);
-    }
-}
-</script>
-
-<script>
-let selectedId = null;
-
-function selectRow(row, id) {
-
-    // Si on reclique sur la ligne déjà sélectionnée
-    if (selectedId === id) {
-        row.classList.remove("selected-row");
-        selectedId = null;
-        document.getElementById("equipmentActions").classList.add("hidden");
-        return;
-    }
-
-    // Sinon on sélectionne normalement
-    document.querySelectorAll("table tr").forEach(tr => {
-        tr.classList.remove("selected-row");
-    });
-
-    row.classList.add("selected-row");
-    selectedId = id;
-
-    document.getElementById("equipmentActions").classList.remove("hidden");
-}
-
-function modifierEquipement() {
-    if (selectedId) {
-        window.location.href = "/modifier_equipement/" + selectedId;
-    }
-}
-
-function supprimerEquipement() {
-    if (selectedId && confirm("Confirmer la suppression ?")) {
-        window.location.href = "/equipements/delete/" + selectedId;
     }
 }
 </script>
