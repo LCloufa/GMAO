@@ -85,6 +85,72 @@ body.sidebar-collapsed .sidebar * {
     pointer-events: none;
 }
 
+.desktop-sidebar-toggle {
+    position: fixed;
+    top: 14px;
+    left: 252px;
+    z-index: 3600;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border-radius: 10px;
+    border: 1px solid #d1d5db;
+    background: white;
+    color: #1f2937;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+    font-weight: 700;
+}
+
+body.sidebar-collapsed .desktop-sidebar-toggle {
+    left: 12px;
+}
+
+body.sidebar-collapsed .sidebar {
+    width: 0;
+    min-width: 0;
+    flex-basis: 0;
+    padding-left: 0;
+    padding-right: 0;
+    box-shadow: none;
+}
+
+body.sidebar-collapsed .sidebar * {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.desktop-sidebar-toggle {
+    position: fixed;
+    top: 14px;
+    left: 252px;
+    z-index: 3600;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border-radius: 10px;
+    border: 1px solid #d1d5db;
+    background: white;
+    color: #1f2937;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+    font-weight: 700;
+}
+
+body.sidebar-collapsed .desktop-sidebar-toggle {
+    left: 12px;
+}
+
+body.sidebar-collapsed .sidebar {
+    width: 0;
+    padding-left: 0;
+    padding-right: 0;
+    box-shadow: none;
+}
+
+body.sidebar-collapsed .sidebar * {
+    opacity: 0;
+    pointer-events: none;
+}
+
 /* ===== Cards ===== */
 
 .cards {
