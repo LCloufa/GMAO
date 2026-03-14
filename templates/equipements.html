@@ -10,7 +10,7 @@
     </a>
 </div>
 
-<form method="get" action="/equipements" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin-bottom:24px;">
+<form id="equipmentFilters" method="get" action="/equipements" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin-bottom:24px;">
     <div style="display:flex; flex-direction:column; min-width:260px; flex:1;">
         <label for="q" style="font-weight:600; margin-bottom:6px;">Recherche</label>
         <input id="q"
@@ -32,7 +32,6 @@
     </div>
 
     <div style="display:flex; gap:8px;">
-        <button type="submit" class="btn-primary">Filtrer</button>
         {% if recherche or client_filtre %}
             <a href="/equipements" class="btn-secondary">Réinitialiser</a>
         {% endif %}
@@ -75,6 +74,29 @@
 
 <script>
 let clickTimer = null;
+
+const filterForm = document.getElementById("equipmentFilters");
+const searchInput = document.getElementById("q");
+const clientSelect = document.getElementById("client_id");
+let filterTimer = null;
+
+function submitFilters() {
+    if (filterForm) {
+        filterForm.requestSubmit();
+    }
+}
+
+if (searchInput) {
+    searchInput.addEventListener("input", function() {
+        clearTimeout(filterTimer);
+        filterTimer = setTimeout(submitFilters, 300);
+    });
+}
+
+if (clientSelect) {
+    clientSelect.addEventListener("change", submitFilters);
+}
+
 
 function handleClick(event, id) {
 
