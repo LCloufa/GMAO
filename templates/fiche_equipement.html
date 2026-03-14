@@ -11,42 +11,123 @@
         Modifier
     </a>
 </div>
-<div class="card large-card">
+<div class="card large-card equipment-showcase">
 
 {% if equipement.photo %}
-<img src="/{{ equipement.photo }}" style="max-width:300px; border-radius:12px; margin-bottom:20px;">
+<img src="/{{ equipement.photo }}" class="equipment-hero-image" alt="Photo de {{ equipement.nom }}">
 {% endif %}
 
-<div class="form-grid">
+<div class="equipment-slide-shell" data-equipment-slider>
+    <button type="button" class="equipment-slide-control prev" data-slide-prev aria-label="Slide précédent">←</button>
+    <button type="button" class="equipment-slide-control next" data-slide-next aria-label="Slide suivant">→</button>
 
-<p><strong>Code :</strong> {{ equipement.code }}</p>
-<p><strong>Type :</strong> {{ equipement.type }}</p>
+    <div class="equipment-slide-track" data-slide-track>
+        <section class="equipment-slide-panel active">
+            <p class="equipment-slide-subtitle">Identité</p>
+            <h2>Vue d'ensemble</h2>
+            <div class="equipment-data-grid">
+                <article class="equipment-data-item">
+                    <span class="equipment-label">Code</span>
+                    <p>{{ equipement.code or "—" }}</p>
+                </article>
+                <article class="equipment-data-item">
+                    <span class="equipment-label">Type</span>
+                    <p>{{ equipement.type or "—" }}</p>
+                </article>
+                <article class="equipment-data-item">
+                    <span class="equipment-label">Statut</span>
+                    <p><span class="equipment-status-pill">{{ equipement.statut or "—" }}</span></p>
+                </article>
+                <article class="equipment-data-item">
+                    <span class="equipment-label">Client</span>
+                    <p>{{ equipement.client_nom or "—" }}</p>
+                </article>
+            </div>
+        </section>
 
-<p><strong>Statut :</strong> {{ equipement.statut }}</p>
-<p><strong>Client :</strong> {{ equipement.client_nom }}</p>
+        <section class="equipment-slide-panel">
+            <p class="equipment-slide-subtitle">Référentiel</p>
+            <h2>Caractéristiques techniques</h2>
+            <div class="equipment-data-grid">
+                <article class="equipment-data-item">
+                    <span class="equipment-label">Emplacement</span>
+                    <p>{{ equipement.emplacement or "—" }}</p>
+                </article>
+                <article class="equipment-data-item">
+                    <span class="equipment-label">Fabricant</span>
+                    <p>{{ equipement.fabricant or "—" }}</p>
+                </article>
+                <article class="equipment-data-item">
+                    <span class="equipment-label">Modèle</span>
+                    <p>{{ equipement.modele or "—" }}</p>
+                </article>
+                <article class="equipment-data-item">
+                    <span class="equipment-label">N° Série</span>
+                    <p>{{ equipement.numero_serie or "—" }}</p>
+                </article>
+            </div>
+        </section>
 
-<p><strong>Emplacement :</strong> {{ equipement.emplacement }}</p>
-<p><strong>Fabricant :</strong> {{ equipement.fabricant }}</p>
+        <section class="equipment-slide-panel">
+            <p class="equipment-slide-subtitle">Suivi</p>
+            <h2>Installation & documents</h2>
+            <div class="equipment-data-grid single-column">
+                <article class="equipment-data-item">
+                    <span class="equipment-label">Date d'installation</span>
+                    <p>{{ equipement.date_installation or "—" }}</p>
+                </article>
+            </div>
 
-<p><strong>Modèle :</strong> {{ equipement.modele }}</p>
-<p><strong>N° Série :</strong> {{ equipement.numero_serie }}</p>
+            <div class="equipment-docs-section">
+                <h3>Documents</h3>
+                {% if documents %}
+                <ul class="equipment-doc-list">
+                {% for doc in documents %}
+                    <li>
+                        <a href="/{{ doc.filepath }}" target="_blank" rel="noopener">{{ doc.filename }}</a>
+                    </li>
+                {% endfor %}
+                </ul>
+                {% else %}
+                    <p class="equipment-empty-docs">Aucun document disponible.</p>
+                {% endif %}
+            </div>
+        </section>
+    </div>
 
-<p><strong>Date installation :</strong> {{ equipement.date_installation }}</p>
+    <div class="equipment-slide-dots" data-slide-dots>
+        <button class="active" aria-label="Aller au slide 1"></button>
+        <button aria-label="Aller au slide 2"></button>
+        <button aria-label="Aller au slide 3"></button>
+    </div>
+</div>
 
 </div>
 
-<hr>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const slider = document.querySelector("[data-equipment-slider]");
+    if (!slider) return;
 
-<h3>Documents</h3>
+    const track = slider.querySelector("[data-slide-track]");
+    const slides = Array.from(track.querySelectorAll(".equipment-slide-panel"));
+    const dots = Array.from(slider.querySelectorAll("[data-slide-dots] button"));
+    const next = slider.querySelector("[data-slide-next]");
+    const prev = slider.querySelector("[data-slide-prev]");
 
-<ul>
-{% for doc in documents %}
-    <li>
-        <a href="/{{ doc.filepath }}" target="_blank">{{ doc.filename }}</a>
-    </li>
-{% endfor %}
-</ul>
+    let index = 0;
 
-</div>
+    function renderSlide(newIndex) {
+        index = (newIndex + slides.length) % slides.length;
+        track.style.transform = `translateX(-${index * 100}%)`;
+        slides.forEach((slide, i) => slide.classList.toggle("active", i === index));
+        dots.forEach((dot, i) => dot.classList.toggle("active", i === index));
+    }
+
+    next.addEventListener("click", () => renderSlide(index + 1));
+    prev.addEventListener("click", () => renderSlide(index - 1));
+    dots.forEach((dot, i) => dot.addEventListener("click", () => renderSlide(i)));
+});
+</script>
 
 {% endblock %}
