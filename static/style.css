@@ -18,6 +18,8 @@ body {
     height: 100vh;
     padding: 25px 20px;
     box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+    transition: width 0.25s ease, padding 0.25s ease;
+    overflow: hidden;
 }
 
 .sidebar h1 {
@@ -45,6 +47,38 @@ body {
 .main {
     flex: 1;
     padding: 40px;
+}
+
+.desktop-sidebar-toggle {
+    position: fixed;
+    top: 14px;
+    left: 252px;
+    z-index: 3600;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border-radius: 10px;
+    border: 1px solid #d1d5db;
+    background: white;
+    color: #1f2937;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+    font-weight: 700;
+}
+
+body.sidebar-collapsed .desktop-sidebar-toggle {
+    left: 12px;
+}
+
+body.sidebar-collapsed .sidebar {
+    width: 0;
+    padding-left: 0;
+    padding-right: 0;
+    box-shadow: none;
+}
+
+body.sidebar-collapsed .sidebar * {
+    opacity: 0;
+    pointer-events: none;
 }
 
 /* ===== Cards ===== */
