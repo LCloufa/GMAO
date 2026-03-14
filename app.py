@@ -160,6 +160,43 @@ def init_db():
     """)
     conn.commit()
     conn.close()
+
+
+def sync_equipement_statut(conn, equipement_id):
+    """Synchronise automatiquement le statut équipement selon pannes/interventions actives."""
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT EXISTS (
+            SELECT 1
+            FROM declarations_panne
+            WHERE equipment_id = ?
+              AND status IN ('pending', 'in_progress')
+        )
+        """,
+        (equipement_id,),
+    )
+    has_active_declaration = bool(cursor.fetchone()[0])
+
+    cursor.execute(
+        """
+        SELECT EXISTS (
+            SELECT 1
+            FROM interventions
+            WHERE equipment_id = ?
+              AND status IN ('planned', 'in_progress')
+        )
+        """,
+        (equipement_id,),
+    )
+    has_active_intervention = bool(cursor.fetchone()[0])
+
+    next_statut = "En panne" if (has_active_declaration or has_active_intervention) else "Opérationnel"
+    cursor.execute(
+        "UPDATE equipements SET statut = ? WHERE id = ?",
+        (next_statut, equipement_id),
+    )
 # ==========================
 # Inscription/Connexion/Déconnexion
 # ==========================
@@ -1053,6 +1090,8 @@ def add_intervention():
         data.get("description")
     ))
 
+    sync_equipement_statut(conn, data["equipment_id"])
+
     conn.commit()
     conn.close()
 
@@ -1061,7 +1100,15 @@ def add_intervention():
 def delete_intervention(id):
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
+
+    cursor.execute("SELECT equipment_id FROM interventions WHERE id=?", (id,))
+    row = cursor.fetchone()
+
     cursor.execute("DELETE FROM interventions WHERE id=?", (id,))
+
+    if row:
+        sync_equipement_statut(conn, row[0])
+
     conn.commit()
     conn.close()
     return redirect("/interventions")
@@ -1070,6 +1117,9 @@ def delete_intervention(id):
 def update_status(id, status):
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
+
+    cursor.execute("SELECT equipment_id FROM interventions WHERE id=?", (id,))
+    row = cursor.fetchone()
 
     if status == "completed":
         cursor.execute("""
@@ -1083,6 +1133,9 @@ def update_status(id, status):
             SET status=?
             WHERE id=?
         """, (status, id))
+
+    if row:
+        sync_equipement_statut(conn, row[0])
 
     conn.commit()
     conn.close()
@@ -1226,6 +1279,8 @@ def nouvelle_declaration():
             location
         ))
 
+        sync_equipement_statut(conn, equipment_id)
+
         declaration_id = cursor.lastrowid
 
         # Photos (optionnel)
@@ -1263,11 +1318,17 @@ def declaration_set_status(id, status):
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
 
+    cursor.execute("SELECT equipment_id FROM declarations_panne WHERE id=?", (id,))
+    row = cursor.fetchone()
+
     cursor.execute("""
         UPDATE declarations_panne
         SET status=?, updated_at=datetime('now')
         WHERE id=?
     """, (status, id))
+
+    if row:
+        sync_equipement_statut(conn, row[0])
 
     conn.commit()
     conn.close()
@@ -1333,6 +1394,8 @@ def declaration_create_intervention(id):
             SET intervention_id=?, status='in_progress', updated_at=datetime('now')
             WHERE id=?
         """, (intervention_id, id))
+
+        sync_equipement_statut(conn, dec[5])
 
         conn.commit()
         conn.close()
