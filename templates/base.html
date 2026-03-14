@@ -104,6 +104,13 @@
 <button id="desktopSidebarToggle" class="desktop-sidebar-toggle" onclick="toggleDesktopSidebar()" title="Rétracter le menu">◀</button>
 
 <div class="layout">
+<!-- ✅ Overlay -->
+<div id="mobileOverlay" class="mobile-overlay" onclick="closeMobileMenu()"></div>
+
+<!-- ✅ Toggle desktop sidebar -->
+<button id="desktopSidebarToggle" class="desktop-sidebar-toggle" onclick="toggleDesktopSidebar()" title="Rétracter le menu">◀</button>
+
+<div class="layout">
 
 <div class="sidebar" id="sidebar">
     <h1>⚙ GMAO Pro</h1>
@@ -208,6 +215,47 @@ window.addEventListener("resize", function () {
 });
 
 document.addEventListener("DOMContentLoaded", syncDesktopSidebarButton);
+
+function openIntervention(id) {
+<script>
+function toggleMobileMenu() {
+    const sidebar = document.getElementById("sidebar");
+    const overlay = document.getElementById("mobileOverlay");
+    if (!sidebar || !overlay) return;
+
+    const isOpen = sidebar.classList.toggle("open");
+    overlay.classList.toggle("show", isOpen);
+    document.body.classList.toggle("mobile-menu-open", isOpen);
+}
+
+function closeMobileMenu() {
+    const sidebar = document.getElementById("sidebar");
+    const overlay = document.getElementById("mobileOverlay");
+    if (!sidebar || !overlay) return;
+
+    sidebar.classList.remove("open");
+    overlay.classList.remove("show");
+    document.body.classList.remove("mobile-menu-open");
+}
+
+document.addEventListener("click", function (event) {
+    const sidebar = document.getElementById("sidebar");
+    const menuBtn = document.querySelector(".mobile-topbar .icon-btn");
+    if (!sidebar || !menuBtn || window.innerWidth > 900) return;
+
+    const clickedInsideSidebar = sidebar.contains(event.target);
+    const clickedMenuButton = menuBtn.contains(event.target);
+
+    if (sidebar.classList.contains("open") && !clickedInsideSidebar && !clickedMenuButton) {
+        closeMobileMenu();
+    }
+});
+
+window.addEventListener("resize", function () {
+    if (window.innerWidth > 900) {
+        closeMobileMenu();
+    }
+});
 
 function openIntervention(id) {
 
