@@ -1337,7 +1337,22 @@ def add_rapport():
     )
 
     equipement_id = intervention[0]
-    if data.get("etat") == "Toujours en panne":
+    etat_rapport = data.get("etat")
+
+    # Si le rapport confirme que l'équipement est opérationnel,
+    # on clôture automatiquement la déclaration de panne liée à cette intervention.
+    if etat_rapport == "Opérationnel":
+        cursor.execute(
+            """
+            UPDATE declarations_panne
+            SET status='resolved', updated_at=datetime('now')
+            WHERE intervention_id=?
+              AND status IN ('pending', 'in_progress')
+            """,
+            (intervention_id,),
+        )
+
+    if etat_rapport == "Toujours en panne":
         cursor.execute("UPDATE equipements SET statut='En panne' WHERE id=?", (equipement_id,))
     else:
         sync_equipement_statut(conn, equipement_id)
