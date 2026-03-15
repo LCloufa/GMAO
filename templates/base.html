@@ -114,6 +114,7 @@
         <a href="/equipements">Équipements</a>
         <a href="/techniciens">Techniciens</a>
         <a href="/interventions">Interventions</a>
+        <a href="/rapports">Rapports</a>
         <a href="/clients">Clients</a>
 
         {% if session.get('role') == 'admin' %}
@@ -225,6 +226,8 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 });
 
+const canWriteReport = {{ "true" if session.get("role") in ["admin", "technician"] else "false" }};
+
 function openIntervention(id) {
 
     console.log("CLICK OK :", id);
@@ -242,10 +245,11 @@ function openIntervention(id) {
                 <p><strong>Équipement :</strong> ${data.equipement_nom}</p>
                 <p><strong>Description :</strong> ${data.description || "-"}</p>
 
+                ${canWriteReport ? `
                 <button class="btn-success"
-                    onclick="openReportForm(${data.id}, '${data.scheduled_time || ""}')">
+                    onclick="openReportForm(${data.id}, '${data.scheduled_time || ''}')">
                     Rédiger le rapport
-                </button>
+                </button>` : ''}
             `;
 
             document.getElementById("drawer").classList.add("open");
@@ -261,8 +265,7 @@ function closeDrawer() {
 function openReportForm(id, startTime) {
 
     document.getElementById("drawerBody").innerHTML = `
-        <form method="POST" action="/rapports/add">
-        <form method="POST" autocomplete="off">
+        <form method="POST" action="/rapports/add" autocomplete="off">
 
             <input type="hidden" name="intervention_id" value="${id}">
 
@@ -316,6 +319,7 @@ function openInterventionForm() {
 <div class="mobile-bottom-nav">
   <a href="/" class="{% if request.path=='/' %}active{% endif %}">🏠</a>
   <a href="/interventions" class="{% if '/interventions' in request.path %}active{% endif %}">🗓</a>
+  <a href="/rapports" class="{% if '/rapports' in request.path %}active{% endif %}">📝</a>
   <a href="/equipements" class="{% if '/equipements' in request.path %}active{% endif %}">⚙</a>
   <a href="/clients" class="{% if '/clients' in request.path %}active{% endif %}">👥</a>
   <a href="/techniciens" class="{% if '/techniciens' in request.path %}active{% endif %}">🧰</a>
