@@ -265,33 +265,55 @@ function closeDrawer() {
 function openReportForm(id, startTime) {
 
     document.getElementById("drawerBody").innerHTML = `
-        <form method="POST" action="/rapports/add" autocomplete="off">
+        <form method="POST" action="/rapports/add" autocomplete="off" class="report-form-modern">
+
+            <div class="report-form-hero">
+                <div>
+                    <p class="report-kicker">Compte-rendu d'intervention</p>
+                    <h3>Rédaction du rapport</h3>
+                </div>
+                <span class="report-chip">Intervention #${id}</span>
+            </div>
 
             <input type="hidden" name="intervention_id" value="${id}">
 
-            <label>Travaux effectués *</label>
-            <textarea name="travaux" required></textarea>
+            <div class="report-section-grid">
+                <div class="report-field report-field-full">
+                    <label>Travaux effectués *</label>
+                    <textarea name="travaux" required placeholder="Décrivez précisément les opérations réalisées"></textarea>
+                </div>
 
-            <label>Heure début</label>
-            <input type="time" name="heure_debut" value="${startTime}">
+                <div class="report-field">
+                    <label>Heure début</label>
+                    <input type="time" name="heure_debut" value="${startTime}">
+                </div>
 
-            <label>Heure fin *</label>
-            <input type="time" name="heure_fin" required>
+                <div class="report-field">
+                    <label>Heure fin *</label>
+                    <input type="time" name="heure_fin" required>
+                </div>
+            </div>
 
-            <label>Observations</label>
-            <textarea name="observations"></textarea>
+            <div class="report-field">
+                <label>Observations</label>
+                <textarea name="observations" placeholder="Points d'attention, anomalies, actions complémentaires..."></textarea>
+            </div>
 
-            <label>État équipement *</label>
-            <select name="etat" required>
-                <option value="Opérationnel">Opérationnel</option>
-                <option value="Nécessite un suivi">Nécessite un suivi</option>
-                <option value="Toujours en panne">Toujours en panne</option>
-            </select>
+            <div class="report-field">
+                <label>État équipement *</label>
+                <select name="etat" required>
+                    <option value="Opérationnel">✅ Opérationnel</option>
+                    <option value="Nécessite un suivi">🛠 Nécessite un suivi</option>
+                    <option value="Toujours en panne">🚨 Toujours en panne</option>
+                </select>
+            </div>
 
-            <label>Recommandations</label>
-            <textarea name="recommandations"></textarea>
+            <div class="report-field">
+                <label>Recommandations</label>
+                <textarea name="recommandations" placeholder="Préconisations pour éviter une nouvelle panne"></textarea>
+            </div>
 
-            <button type="submit" class="btn-success">
+            <button type="submit" class="btn-success report-submit-btn">
                 Soumettre le rapport
             </button>
         </form>
@@ -332,6 +354,5 @@ function openInterventionForm() {
 </body>
 
 </html>
-
 
 
