@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; gap:15px; flex-wrap:wrap;">
+  <div>
+    <h1 style="margin-bottom:6px;">Rapports d'intervention</h1>
+    <p style="margin:0; color:#64748b;">{{ rapports|length }} rapports · <span style="color:#16a34a; font-weight:600;">{{ k_ok }} opérationnels</span></p>
+  </div>
+  <a href="/export/rapports" class="btn-primary" style="text-decoration:none;">Exporter CSV</a>
+</div>
+
+<div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:14px;">
+  <div class="kpi-card"><div class="kpi-title">Total</div><div class="kpi-value">{{ k_total }}</div></div>
+  <div class="kpi-card"><div class="kpi-title">Opérationnel</div><div class="kpi-value" style="color:#16a34a;">{{ k_ok }}</div></div>
+  <div class="kpi-card"><div class="kpi-title">Suivi requis</div><div class="kpi-value" style="color:#f59e0b;">{{ k_suivi }}</div></div>
+  <div class="kpi-card"><div class="kpi-title">Toujours en panne</div><div class="kpi-value" style="color:#ef4444;">{{ k_ko }}</div></div>
+</div>
+
+<form method="GET" style="display:flex; gap:10px; margin-bottom:18px; flex-wrap:wrap;">
+  <input type="text" name="q" value="{{ q }}" placeholder="Recherche (intervention, équipement, travaux...)" style="min-width:280px;">
+  <select name="etat">
+    <option value="">Tous les états</option>
+    <option value="Opérationnel" {% if etat=='Opérationnel' %}selected{% endif %}>Opérationnel</option>
+    <option value="Nécessite un suivi" {% if etat=='Nécessite un suivi' %}selected{% endif %}>Nécessite un suivi</option>
+    <option value="Toujours en panne" {% if etat=='Toujours en panne' %}selected{% endif %}>Toujours en panne</option>
+  </select>
+  <button class="btn-primary" type="submit">Filtrer</button>
+</form>
+
+<table>
+  <tr>
+    <th>ID</th>
+    <th>Intervention</th>
+    <th>Équipement</th>
+    <th>Travaux</th>
+    <th>Horaire</th>
+    <th>État</th>
+    <th>Auteur</th>
+    <th>Date</th>
+    {% if session.get('role') == 'admin' %}<th>Action</th>{% endif %}
+  </tr>
+  {% for r in rapports %}
+  <tr onclick="openRapport({{ r[0] }})" style="cursor:pointer;">
+    <td>#{{ r[0] }}</td>
+    <td>{{ r[1] or '-' }}</td>
+    <td>{{ r[2] or '-' }}</td>
+    <td>{{ r[3] }}</td>
+    <td>{{ r[4] or '-' }} → {{ r[5] }}</td>
+    <td><span class="badge">{{ r[6] }}</span></td>
+    <td>{{ r[8] }}</td>
+    <td>{{ r[7] }}</td>
+    {% if session.get('role') == 'admin' %}
+    <td>
+      <a href="/rapports/{{ r[0] }}/delete" onclick="event.stopPropagation(); return confirm('Supprimer ce rapport ?');" style="color:#dc2626;">Supprimer</a>
+    </td>
+    {% endif %}
+  </tr>
+  {% endfor %}
+</table>
+
+<script>
+function openRapport(id) {
+  fetch('/rapports/' + id + '/details')
+    .then(response => response.json())
+    .then(data => {
+      document.getElementById('drawerTitle').innerText = 'Rapport #' + data.id;
+      document.getElementById('drawerBody').innerHTML = `
+        <p><strong>Intervention :</strong> ${data.intervention_title || '-'}</p>
+        <p><strong>Équipement :</strong> ${data.equipement_nom || '-'}</p>
+        <p><strong>Auteur :</strong> ${data.auteur}</p>
+        <p><strong>Créé le :</strong> ${data.created_at}</p>
+        <hr>
+        <p><strong>Travaux :</strong><br>${data.travaux || '-'}</p>
+        <p><strong>Heure début :</strong> ${data.heure_debut || '-'}</p>
+        <p><strong>Heure fin :</strong> ${data.heure_fin || '-'}</p>
+        <p><strong>État :</strong> ${data.etat || '-'}</p>
+        <p><strong>Observations :</strong><br>${data.observations || '-'}</p>
+        <p><strong>Recommandations :</strong><br>${data.recommandations || '-'}</p>
+      `;
+      document.getElementById('drawer').classList.add('open');
+    });
+}
+</script>
+
+{% endblock %}

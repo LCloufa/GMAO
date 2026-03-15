@@ -43,6 +43,20 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+
+
+def role_required(*roles):
+    def decorator(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            if "user_id" not in session:
+                return redirect("/login")
+            if session.get("role") not in roles:
+                return "Accès refusé", 403
+            return f(*args, **kwargs)
+        return wrapped
+    return decorator
+
 # ==========================
 # Base de données
 # ==========================
@@ -156,6 +170,24 @@ def init_db():
         declaration_id INTEGER NOT NULL,
         filepath TEXT NOT NULL,
         FOREIGN KEY (declaration_id) REFERENCES declarations_panne(id)
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS rapports_intervention (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        intervention_id INTEGER NOT NULL,
+        travaux TEXT NOT NULL,
+        heure_debut TEXT,
+        heure_fin TEXT NOT NULL,
+        observations TEXT,
+        etat TEXT CHECK(etat IN ('Opérationnel','Nécessite un suivi','Toujours en panne')) NOT NULL,
+        recommandations TEXT,
+        created_by_user_id INTEGER,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT,
+        FOREIGN KEY (intervention_id) REFERENCES interventions(id),
+        FOREIGN KEY (created_by_user_id) REFERENCES users(id)
     )
     """)
     conn.commit()
@@ -1167,20 +1199,252 @@ def intervention_details(id):
         return {"error": "Not found"}, 404
 
     return dict(intervention)
+
+
+@app.route("/rapports")
+@login_required
+def rapports():
+    q = request.args.get("q", "").strip()
+    etat = request.args.get("etat", "").strip()
+
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT COUNT(*) FROM rapports_intervention")
+    k_total = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM rapports_intervention WHERE etat='Opérationnel'")
+    k_ok = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM rapports_intervention WHERE etat='Nécessite un suivi'")
+    k_suivi = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM rapports_intervention WHERE etat='Toujours en panne'")
+    k_ko = cursor.fetchone()[0]
+
+    query = """
+        SELECT r.id,
+               i.title,
+               e.nom,
+               r.travaux,
+               r.heure_debut,
+               r.heure_fin,
+               r.etat,
+               r.created_at,
+               COALESCE(u.username, '-')
+        FROM rapports_intervention r
+        LEFT JOIN interventions i ON r.intervention_id = i.id
+        LEFT JOIN equipements e ON i.equipment_id = e.id
+        LEFT JOIN users u ON r.created_by_user_id = u.id
+        WHERE 1=1
+    """
+    params = []
+
+    if etat:
+        query += " AND r.etat = ?"
+        params.append(etat)
+
+    if q:
+        query += " AND (i.title LIKE ? OR e.nom LIKE ? OR r.travaux LIKE ? OR r.observations LIKE ?)"
+        like = f"%{q}%"
+        params.extend([like, like, like, like])
+
+    query += " ORDER BY r.created_at DESC"
+
+    cursor.execute(query, params)
+    rapports = cursor.fetchall()
+    conn.close()
+
+    return render_template(
+        "rapports.html",
+        rapports=rapports,
+        q=q,
+        etat=etat,
+        k_total=k_total,
+        k_ok=k_ok,
+        k_suivi=k_suivi,
+        k_ko=k_ko,
+    )
+
+
+@app.route("/rapports/<int:id>/details")
+@login_required
+def rapport_details(id):
+    conn = sqlite3.connect("database.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT r.*, i.title AS intervention_title, e.nom AS equipement_nom,
+               COALESCE(u.username, '-') AS auteur
+        FROM rapports_intervention r
+        LEFT JOIN interventions i ON r.intervention_id = i.id
+        LEFT JOIN equipements e ON i.equipment_id = e.id
+        LEFT JOIN users u ON r.created_by_user_id = u.id
+        WHERE r.id=?
+        """,
+        (id,),
+    )
+    rapport = cursor.fetchone()
+    conn.close()
+
+    if not rapport:
+        return {"error": "Not found"}, 404
+
+    return dict(rapport)
+
+
+@app.route("/rapports/add", methods=["POST"])
+@login_required
+@role_required("admin", "technician")
+def add_rapport():
+    data = request.form
+    intervention_id = data.get("intervention_id")
+
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT equipment_id FROM interventions WHERE id=?", (intervention_id,))
+    intervention = cursor.fetchone()
+
+    if not intervention:
+        conn.close()
+        return "Intervention introuvable", 404
+
+    cursor.execute(
+        """
+        INSERT INTO rapports_intervention
+        (intervention_id, travaux, heure_debut, heure_fin, observations, etat, recommandations, created_by_user_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            intervention_id,
+            data.get("travaux"),
+            data.get("heure_debut") or None,
+            data.get("heure_fin"),
+            data.get("observations"),
+            data.get("etat"),
+            data.get("recommandations"),
+            session.get("user_id"),
+        ),
+    )
+
+    cursor.execute(
+        """
+        UPDATE interventions
+        SET status='completed', completion_date=date('now')
+        WHERE id=?
+        """,
+        (intervention_id,),
+    )
+
+    equipement_id = intervention[0]
+    etat_rapport = data.get("etat")
+
+    # Si le rapport confirme que l'équipement est opérationnel,
+    # on clôture automatiquement la déclaration de panne liée à cette intervention.
+    if etat_rapport == "Opérationnel":
+        cursor.execute(
+            """
+            UPDATE declarations_panne
+            SET status='resolved', updated_at=datetime('now')
+            WHERE intervention_id=?
+              AND status IN ('pending', 'in_progress')
+            """,
+            (intervention_id,),
+        )
+
+    if etat_rapport == "Toujours en panne":
+        cursor.execute("UPDATE equipements SET statut='En panne' WHERE id=?", (equipement_id,))
+    else:
+        sync_equipement_statut(conn, equipement_id)
+
+    conn.commit()
+    conn.close()
+    return redirect("/rapports")
+
+
+@app.route("/rapports/<int:id>/delete")
+@login_required
+@role_required("admin")
+def delete_rapport(id):
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT i.id, i.equipment_id
+        FROM rapports_intervention r
+        LEFT JOIN interventions i ON r.intervention_id = i.id
+        WHERE r.id=?
+        """,
+        (id,),
+    )
+    row = cursor.fetchone()
+
+    cursor.execute("DELETE FROM rapports_intervention WHERE id=?", (id,))
+
+    if row:
+        intervention_id, equipement_id = row
+        cursor.execute(
+            "UPDATE interventions SET status='in_progress', completion_date=NULL WHERE id=?",
+            (intervention_id,),
+        )
+        sync_equipement_statut(conn, equipement_id)
+
+    conn.commit()
+    conn.close()
+    return redirect("/rapports")
+
+
+@app.route("/export/rapports")
+@login_required
+def export_rapports():
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT r.id,
+               i.title,
+               e.nom,
+               r.travaux,
+               r.heure_debut,
+               r.heure_fin,
+               r.etat,
+               r.observations,
+               r.recommandations,
+               r.created_at
+        FROM rapports_intervention r
+        LEFT JOIN interventions i ON r.intervention_id = i.id
+        LEFT JOIN equipements e ON i.equipment_id = e.id
+        ORDER BY r.created_at DESC
+        """
+    )
+    rows = cursor.fetchall()
+    conn.close()
+
+    output = []
+    headers = [
+        "id_rapport",
+        "intervention",
+        "equipement",
+        "travaux",
+        "heure_debut",
+        "heure_fin",
+        "etat",
+        "observations",
+        "recommandations",
+        "cree_le",
+    ]
+    output.append(",".join(headers))
+    for row in rows:
+        output.append(",".join([str(col or "").replace(",", " ") for col in row]))
+
+    return Response(
+        "\n".join(output),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment;filename=rapports_intervention.csv"},
+    )
 from flask import send_from_directory
-
-def role_required(*roles):
-    def decorator(f):
-        @wraps(f)
-        def wrapped(*args, **kwargs):
-            if "user_id" not in session:
-                return redirect("/login")
-            if session.get("role") not in roles:
-                return "Accès refusé", 403
-            return f(*args, **kwargs)
-        return wrapped
-    return decorator
-
 
 @app.route("/declarations")
 @login_required
