@@ -3,7 +3,7 @@
 
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; gap:12px;">
     <h1 style="margin:0;">Gestion des clients</h1>
-    <a href="/clients/nouveau" class="btn-primary">+ Nouveau client</a>
+    <button type="button" class="btn-primary" onclick="openNewClientModal()">+ Nouveau client</button>
 </div>
 
 <table>
@@ -39,5 +39,116 @@
 {% endfor %}
 
 </table>
+
+<style>
+    .ce-field {
+        min-height: 44px;
+        border: 1px solid #cbd5e1;
+        border-radius: 14px;
+        padding: 10px 14px;
+        background: #fff;
+        outline: none;
+    }
+    .ce-field:focus {
+        border-color: #111827;
+        box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.08);
+    }
+    .ce-field:empty::before {
+        content: attr(data-placeholder);
+        color: #64748b;
+    }
+</style>
+
+<div id="newClientModal" style="display:none; position:fixed; inset:0; z-index:1200; background:rgba(15, 23, 42, 0.35);">
+    <div style="position:relative; width:min(1120px, 92vw); margin:24px auto; background:#fff; border-radius:22px; padding:30px 34px; max-height:calc(100vh - 48px); overflow:auto;">
+        <button type="button" onclick="closeNewClientModal()" aria-label="Fermer" style="position:absolute; top:20px; right:20px; border:none; background:transparent; font-size:38px; line-height:1; color:#334155; cursor:pointer;">×</button>
+
+        <h1 style="margin-bottom:24px;">Nouveau client</h1>
+        <hr style="border:none; border-top:1px solid #e2e8f0; margin:0 0 24px;">
+
+        <form action="/clients/add" method="POST" class="form" autocomplete="off" onsubmit="syncClientFormFields(this)">
+            <input type="text" name="fake_username" autocomplete="username" tabindex="-1" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;">
+            <input type="password" name="fake_password" autocomplete="new-password" tabindex="-1" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;">
+            <input type="hidden" name="nom">
+            <input type="hidden" name="email">
+            <input type="hidden" name="telephone">
+            <input type="hidden" name="site_web">
+
+            <div style="margin-bottom:20px;">
+                <label style="display:block; margin-bottom:8px; font-weight:600;">Nom *</label>
+                <div class="ce-field" contenteditable="true" data-field="nom" data-placeholder="Nom du client" tabindex="0"></div>
+            </div>
+
+            <div class="form-row">
+                <div>
+                    <label style="display:block; margin-bottom:8px; font-weight:600;">Email</label>
+                    <div class="ce-field" contenteditable="true" data-field="email" data-placeholder="contact@client.com" tabindex="0"></div>
+                </div>
+                <div>
+                    <label style="display:block; margin-bottom:8px; font-weight:600;">Téléphone</label>
+                    <div class="ce-field" contenteditable="true" data-field="telephone" data-placeholder="+33 ..." tabindex="0"></div>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div>
+                    <label style="display:block; margin-bottom:8px; font-weight:600;">Site web</label>
+                    <div class="ce-field" contenteditable="true" data-field="site_web" data-placeholder="https://..." tabindex="0"></div>
+                </div>
+                <div>
+                    <label style="display:block; margin-bottom:8px; font-weight:600;">Rythme horaire</label>
+                    <select name="rythme_horaire">
+                        {% for rythme in rythme_options %}
+                            <option value="{{ rythme }}">{{ rythme }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="actions-row" style="margin-top:25px; justify-content:flex-end;">
+                <button type="button" class="btn-secondary" onclick="closeNewClientModal()">Annuler</button>
+                <button type="submit" class="btn-primary">Créer le client</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openNewClientModal() {
+        const modal = document.getElementById("newClientModal");
+        if (!modal) return;
+        modal.style.display = "block";
+        document.body.style.overflow = "hidden";
+    }
+
+    function closeNewClientModal() {
+        const modal = document.getElementById("newClientModal");
+        if (!modal) return;
+        modal.style.display = "none";
+        document.body.style.overflow = "";
+    }
+
+    document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape") closeNewClientModal();
+    });
+
+    function syncClientFormFields(form) {
+        const get = (field) => {
+            const el = form.querySelector(`.ce-field[data-field="${field}"]`);
+            return (el?.textContent || "").trim();
+        };
+
+        form.elements.nom.value = get("nom");
+        form.elements.email.value = get("email");
+        form.elements.telephone.value = get("telephone");
+        form.elements.site_web.value = get("site_web");
+
+        if (!form.elements.nom.value) {
+            alert("Le nom du client est obligatoire.");
+            return false;
+        }
+        return true;
+    }
+</script>
 
 {% endblock %}
