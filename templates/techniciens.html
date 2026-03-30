@@ -4,7 +4,7 @@
 
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; gap:12px;">
     <h1 style="margin:0;">Gestion des techniciens</h1>
-    <button type="button" class="btn-primary" onclick="openNewTechnicienModal()">+ Nouveau technicien</button>
+    <button type="button" class="btn-primary" onclick="openNewTechnicienModal()">Ajouter</button>
 </div>
 
 <div class="actions-row" style="margin-bottom:18px;">
@@ -67,7 +67,7 @@
     }
 </style>
 
-<div id="newTechnicienModal" style="display:none; position:fixed; inset:0; z-index:1200; background:rgba(15, 23, 42, 0.35);">
+<div id="newTechnicienModal" onclick="closeTechnicienModalOnBackdrop(event)" style="display:none; position:fixed; inset:0; z-index:1200; background:rgba(15, 23, 42, 0.35);">
     <div style="position:relative; width:min(1120px, 92vw); margin:24px auto; background:#fff; border-radius:22px; padding:30px 34px; max-height:calc(100vh - 48px); overflow:auto;">
         <button type="button" onclick="closeNewTechnicienModal()" aria-label="Fermer" style="position:absolute; top:20px; right:20px; border:none; background:transparent; font-size:38px; line-height:1; color:#334155; cursor:pointer;">×</button>
 
@@ -168,6 +168,12 @@ function closeNewTechnicienModal() {
     if (!modal) return;
     modal.style.display = "none";
     document.body.style.overflow = "";
+}
+
+function closeTechnicienModalOnBackdrop(event) {
+    if (event.target && event.target.id === "newTechnicienModal") {
+        closeNewTechnicienModal();
+    }
 }
 
 document.addEventListener("keydown", function (event) {
