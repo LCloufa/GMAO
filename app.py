@@ -577,18 +577,21 @@ def dashboard():
             WHERE i.equipment_id = e.id
             AND i.type = 'corrective'
             AND i.priority = 'critical'
+            AND i.status IN ('planned', 'in_progress')
             AND i.scheduled_date = ?
         )
         THEN 'En panne'
         WHEN EXISTS (
             SELECT 1 FROM interventions i
             WHERE i.equipment_id = e.id
+            AND i.status IN ('planned', 'in_progress')
             AND i.scheduled_date = ?
         )
         THEN 'Maintenance'
         WHEN EXISTS (
             SELECT 1 FROM interventions i
             WHERE i.equipment_id = e.id
+            AND i.status = 'planned'
             AND i.scheduled_date > ?
             AND i.scheduled_date <= ?
         )
@@ -2139,7 +2142,6 @@ if __name__ == "__main__":
     ensure_upload_dirs()
     init_db()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
-
 
 
 
