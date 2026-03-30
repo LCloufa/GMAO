@@ -4,27 +4,31 @@
 <h1>Modifier le client</h1>
 
 <div class="card" style="max-width:560px;">
-    <form method="POST" class="form-vertical" autocomplete="off">
+    <form method="POST" class="form-vertical" autocomplete="off" onsubmit="syncClientFormFields(this)">
         <input type="text" name="fake_username" autocomplete="username" tabindex="-1" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;">
         <input type="password" name="fake_password" autocomplete="new-password" tabindex="-1" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;">
+        <input type="hidden" name="nom" value="{{ client['nom'] }}">
+        <input type="hidden" name="email" value="{{ client['email'] }}">
+        <input type="hidden" name="telephone" value="{{ client['telephone'] }}">
+        <input type="hidden" name="site_web" value="{{ client['site_web'] }}">
         <div>
             <label>Nom</label>
-            <input type="text" name="nom" value="{{ client['nom'] }}" required autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');">
+            <input type="text" name="nom_visible" value="{{ client['nom'] }}" required autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
         </div>
 
         <div>
             <label>Email</label>
-            <input type="email" name="email" value="{{ client['email'] }}" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');">
+            <input type="email" name="email_visible" value="{{ client['email'] }}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
         </div>
 
         <div>
             <label>Téléphone</label>
-            <input type="text" name="telephone" value="{{ client['telephone'] }}" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');">
+            <input type="text" name="telephone_visible" value="{{ client['telephone'] }}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
         </div>
 
         <div>
             <label>Site web</label>
-            <input type="text" name="site_web" value="{{ client['site_web'] }}" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');">
+            <input type="text" name="site_web_visible" value="{{ client['site_web'] }}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
         </div>
 
         <div>
@@ -42,5 +46,14 @@
         </div>
     </form>
 </div>
+
+<script>
+    function syncClientFormFields(form) {
+        form.elements.nom.value = form.elements.nom_visible.value;
+        form.elements.email.value = form.elements.email_visible.value;
+        form.elements.telephone.value = form.elements.telephone_visible.value;
+        form.elements.site_web.value = form.elements.site_web_visible.value;
+    }
+</script>
 
 {% endblock %}
