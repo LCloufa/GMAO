@@ -3,15 +3,21 @@
 
 <h1 style="margin-bottom:30px;">Nouveau client</h1>
 
-<form action="/clients/nouveau" method="POST" class="form" autocomplete="off">
+<form action="/clients/nouveau" method="POST" class="form" autocomplete="off" onsubmit="syncClientFormFields(this)">
+    <input type="text" name="fake_username" autocomplete="username" tabindex="-1" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;">
+    <input type="password" name="fake_password" autocomplete="new-password" tabindex="-1" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;">
+    <input type="hidden" name="nom">
+    <input type="hidden" name="email">
+    <input type="hidden" name="telephone">
+    <input type="hidden" name="site_web">
     <div style="margin-bottom:20px;">
-        <input type="text" name="nom" placeholder="Nom du client" required style="width:100%;">
+        <input type="search" name="nom_visible" placeholder="Nom du client" required style="width:100%;" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');">
     </div>
 
     <div class="form-row">
-        <input type="email" name="email" placeholder="Email">
-        <input type="text" name="telephone" placeholder="Téléphone">
-        <input type="text" name="site_web" placeholder="Site web">
+        <input type="email" name="email_visible" placeholder="Email" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <input type="text" name="telephone_visible" placeholder="Téléphone" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <input type="text" name="site_web_visible" placeholder="Site web" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
     </div>
 
     <div class="form-row">
@@ -27,5 +33,14 @@
         <button type="submit" class="btn-primary">Créer le client</button>
     </div>
 </form>
+
+<script>
+    function syncClientFormFields(form) {
+        form.elements.nom.value = form.elements.nom_visible.value;
+        form.elements.email.value = form.elements.email_visible.value;
+        form.elements.telephone.value = form.elements.telephone_visible.value;
+        form.elements.site_web.value = form.elements.site_web_visible.value;
+    }
+</script>
 
 {% endblock %}
