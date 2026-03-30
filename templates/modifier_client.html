@@ -13,7 +13,7 @@
         <input type="hidden" name="site_web" value="{{ client['site_web'] }}">
         <div>
             <label>Nom</label>
-            <input type="text" name="nom_visible" value="{{ client['nom'] }}" required autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+            <input type="search" name="nom_visible" value="{{ client['nom'] }}" required autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');">
         </div>
 
         <div>
