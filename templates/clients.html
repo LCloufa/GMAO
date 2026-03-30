@@ -1,46 +1,184 @@
 {% extends "base.html" %}
 {% block content %}
 
-<h1>Gestion des clients</h1>
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; gap:12px;">
+    <h1 style="margin:0;">Gestion des clients</h1>
+    <button type="button" class="btn-primary" onclick="openClientModal()">+ Nouveau client</button>
+</div>
 
-<form action="/clients/add" method="POST" class="form">
-	<form method="POST" autocomplete="off">
-    <input type="text" name="nom" placeholder="Nom" required>
-    <input type="email" name="email" placeholder="Email">
-    <input type="text" name="telephone" placeholder="Téléphone">
-    <input type="text" name="site_web" placeholder="Site web">
-    <button type="submit" class="btn-primary">Ajouter</button>
-</form>
+<div id="clientModal" class="client-modal" aria-hidden="true">
+    <div class="client-modal-card">
+        <div class="client-modal-header">
+            <h2>Nouveau client</h2>
+            <button type="button" class="client-close" onclick="closeClientModal()">✕</button>
+        </div>
+
+        <form action="/clients/add" method="POST" class="client-form">
+            <label>Nom *</label>
+            <input type="text" name="nom" required>
+
+            <div class="client-grid">
+                <div>
+                    <label>Email</label>
+                    <input type="email" name="email" placeholder="contact@client.com">
+                </div>
+                <div>
+                    <label>Téléphone</label>
+                    <input type="text" name="telephone" placeholder="+33 ...">
+                </div>
+            </div>
+
+            <div class="client-grid">
+                <div>
+                    <label>Site web</label>
+                    <input type="text" name="site_web" placeholder="https://...">
+                </div>
+                <div>
+                    <label>Rythme horaire</label>
+                    <select name="rythme_horaire">
+                        <option value="1x8">1x8</option>
+                        <option value="2x8">2x8</option>
+                        <option value="3x8">3x8</option>
+                        <option value="24/7">24/7</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="client-actions">
+                <button type="button" class="btn-secondary" onclick="closeClientModal()">Annuler</button>
+                <button type="submit" class="btn-primary">Créer le client</button>
+            </div>
+        </form>
+    </div>
+</div>
 
 <table>
     <tr>
         <th>Nom</th>
         <th>Email</th>
         <th>Téléphone</th>
-	<th>Site web</th>
+        <th>Site web</th>
+        <th>Rythme</th>
         <th>Temps total (heures)</th>
         <th>Actions</th>
     </tr>
 
 {% for c in clients %}
     <tr>
-    	<td>{{ c[1] }}</td>
-    	<td>{{ c[2] }}</td>
-    	<td>{{ c[3] }}</td>
-    	<td>
+        <td>{{ c[1] }}</td>
+        <td>{{ c[2] or "-" }}</td>
+        <td>{{ c[3] or "-" }}</td>
+        <td>
             {% if c[4] %}
+                <a href="{{ c[4] }}" target="_blank" rel="noopener noreferrer">{{ c[4] }}</a>
+            {% else %}
                 -
             {% endif %}
-    	</td>
-    	<td>{{ (c[4] / 60)|round(2) }}</td>
-    	<td>
+        </td>
+        <td>{{ c[5] or "1x8" }}</td>
+        <td>{{ (c[6] / 60)|round(2) }}</td>
+        <td>
             <a href="/modifier_client/{{ c[0] }}" class="btn-edit">Modifier</a>
             <a href="/clients/delete/{{ c[0] }}" class="btn-delete">Supprimer</a>
-    	</td>
+        </td>
     </tr>
-    {% endfor %}
+{% endfor %}
 
 </table>
 
+<style>
+.client-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1200;
+    padding: 20px;
+}
+.client-modal.open { display: flex; }
+.client-modal-card {
+    width: min(760px, 100%);
+    max-height: 90vh;
+    overflow-y: auto;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 20px 45px rgba(15, 23, 42, 0.25);
+    padding: 24px;
+}
+.client-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 12px;
+}
+.client-close {
+    background: transparent;
+    color: #334155;
+    border: none;
+    font-size: 20px;
+    padding: 4px 8px;
+}
+.client-form label {
+    display: block;
+    margin-bottom: 6px;
+    margin-top: 12px;
+    font-weight: 600;
+}
+.client-form input,
+.client-form select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+}
+.client-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+.client-actions {
+    margin-top: 20px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+@media (max-width: 720px) {
+    .client-grid { grid-template-columns: 1fr; }
+}
+</style>
+
+<script>
+const clientModal = document.getElementById("clientModal");
+
+function openClientModal() {
+    if (!clientModal) return;
+    clientModal.classList.add("open");
+    clientModal.setAttribute("aria-hidden", "false");
+}
+
+function closeClientModal() {
+    if (!clientModal) return;
+    clientModal.classList.remove("open");
+    clientModal.setAttribute("aria-hidden", "true");
+}
+
+if (clientModal) {
+    clientModal.addEventListener("click", function(event) {
+        if (event.target === clientModal) {
+            closeClientModal();
+        }
+    });
+}
+
+document.addEventListener("keydown", function(event) {
+    if (event.key === "Escape") {
+        closeClientModal();
+    }
+});
+</script>
 
 {% endblock %}

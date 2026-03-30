@@ -57,6 +57,24 @@ def role_required(*roles):
         return wrapped
     return decorator
 
+RYTHME_OPTIONS = ["1x8", "2x8", "3x8", "24/7"]
+RYTHME_MINUTES_PER_DAY = {
+    "1x8": 8 * 60,
+    "2x8": 16 * 60,
+    "3x8": 24 * 60,
+    "24/7": 24 * 60,
+}
+
+def normalize_rythme(value):
+    if value in RYTHME_OPTIONS:
+        return value
+    return "1x8"
+
+def compute_disponibilite(rate_minutes_per_day, equipment_count, downtime_minutes, days_window=30):
+    total_capacity = max(1, int(rate_minutes_per_day or 0) * max(1, int(equipment_count or 0)) * days_window)
+    ratio = 100 - ((float(downtime_minutes or 0) / total_capacity) * 100)
+    return round(max(0, min(100, ratio)), 1)
+
 # ==========================
 # Base de données
 # ==========================
@@ -80,9 +98,15 @@ def init_db():
         nom TEXT NOT NULL,
         email TEXT,
         telephone TEXT,
-        site_web TEXT
+        site_web TEXT,
+        rythme_horaire TEXT DEFAULT '1x8'
     )
     """)
+
+    cursor.execute("PRAGMA table_info(clients)")
+    existing_columns = [row[1] for row in cursor.fetchall()]
+    if "rythme_horaire" not in existing_columns:
+        cursor.execute("ALTER TABLE clients ADD COLUMN rythme_horaire TEXT DEFAULT '1x8'")
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS techniciens (
@@ -626,6 +650,9 @@ def dashboard():
         base_where = "WHERE e.client_id = ?"
         base_params = [selected_client]
 
+    period_days = 30
+    period_start = (datetime.today() - timedelta(days=period_days)).strftime("%Y-%m-%d")
+
     cursor.execute(
         f"""
         SELECT
@@ -645,43 +672,69 @@ def dashboard():
     global_total, global_completed, global_planned, global_in_progress, global_cancelled, global_postponed = [
         int(v or 0) for v in row
     ]
-    global_rate = round((global_completed / global_total) * 100, 1) if global_total else 0
+    global_dispo_numerator = 0
+    global_dispo_denominator = 0
 
     cursor.execute(
         f"""
         SELECT
             c.id,
             COALESCE(c.nom, 'Sans client') AS client_nom,
+            COALESCE(c.rythme_horaire, '1x8') AS rythme_horaire,
+            COUNT(DISTINCT e.id) AS equipment_count,
             COUNT(i.id) AS total,
             SUM(CASE WHEN i.status = 'completed' THEN 1 ELSE 0 END) AS completed,
             SUM(CASE WHEN i.status = 'planned' THEN 1 ELSE 0 END) AS planned,
             SUM(CASE WHEN i.status = 'in_progress' THEN 1 ELSE 0 END) AS in_progress,
             SUM(CASE WHEN i.status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled,
-            SUM(CASE WHEN i.status = 'postponed' THEN 1 ELSE 0 END) AS postponed
+            SUM(CASE WHEN i.status = 'postponed' THEN 1 ELSE 0 END) AS postponed,
+            COALESCE(SUM(
+                CASE
+                    WHEN i.status != 'cancelled' AND i.scheduled_date >= ? THEN COALESCE(i.estimated_duration, 0)
+                    ELSE 0
+                END
+            ), 0) AS downtime_minutes
         FROM equipements e
         LEFT JOIN clients c ON e.client_id = c.id
         LEFT JOIN interventions i ON i.equipment_id = e.id
         {base_where}
-        GROUP BY c.id, c.nom
+        GROUP BY c.id, c.nom, c.rythme_horaire
         ORDER BY client_nom ASC
         """,
-        base_params,
+        [period_start, *base_params],
     )
     indicateurs_clients = []
     for client_row in cursor.fetchall():
-        total = int(client_row[2] or 0)
-        completed = int(client_row[3] or 0)
+        rythme_horaire = normalize_rythme(client_row[2])
+        equipment_count = int(client_row[3] or 0)
+        total = int(client_row[4] or 0)
+        completed = int(client_row[5] or 0)
+        downtime_minutes = int(client_row[10] or 0)
+        minutes_per_day = RYTHME_MINUTES_PER_DAY.get(rythme_horaire, RYTHME_MINUTES_PER_DAY["1x8"])
+        disponibilite = compute_disponibilite(
+            rate_minutes_per_day=minutes_per_day,
+            equipment_count=equipment_count,
+            downtime_minutes=downtime_minutes,
+            days_window=period_days,
+        )
+        global_dispo_numerator += downtime_minutes
+        global_dispo_denominator += max(1, minutes_per_day * max(1, equipment_count) * period_days)
         indicateurs_clients.append({
             "id": client_row[0],
             "nom": client_row[1],
+            "rythme_horaire": rythme_horaire,
+            "equipment_count": equipment_count,
             "total": total,
             "completed": completed,
-            "planned": int(client_row[4] or 0),
-            "in_progress": int(client_row[5] or 0),
-            "cancelled": int(client_row[6] or 0),
-            "postponed": int(client_row[7] or 0),
-            "rate": round((completed / total) * 100, 1) if total else 0,
+            "planned": int(client_row[6] or 0),
+            "in_progress": int(client_row[7] or 0),
+            "cancelled": int(client_row[8] or 0),
+            "postponed": int(client_row[9] or 0),
+            "downtime_minutes": downtime_minutes,
+            "disponibilite": disponibilite,
         })
+
+    global_rate = round(max(0, min(100, 100 - (global_dispo_numerator / max(1, global_dispo_denominator) * 100))), 1)
 
     cursor.execute(
         f"""
@@ -1853,6 +1906,8 @@ def clients():
                clients.nom,
                clients.email,
                clients.telephone,
+               clients.site_web,
+               COALESCE(clients.rythme_horaire, '1x8') as rythme_horaire,
                COALESCE(SUM(interventions.estimated_duration), 0)
         FROM clients
         LEFT JOIN equipements ON equipements.client_id = clients.id
@@ -1871,14 +1926,15 @@ def add_client():
     email = request.form.get("email")
     telephone = request.form.get("telephone")
     site_web = request.form.get("site_web")
+    rythme_horaire = normalize_rythme(request.form.get("rythme_horaire"))
 
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
 
     cursor.execute("""
-        INSERT INTO clients (nom, email, telephone, site_web)
-        VALUES (?, ?, ?, ?)
-    """, (nom, email, telephone, site_web))
+        INSERT INTO clients (nom, email, telephone, site_web, rythme_horaire)
+        VALUES (?, ?, ?, ?, ?)
+    """, (nom, email, telephone, site_web, rythme_horaire))
 
     conn.commit()
     conn.close()
@@ -1908,13 +1964,14 @@ def modifier_client(id):
         email = request.form["email"]
         telephone = request.form["telephone"]
         site_web = request.form.get("site_web")
+        rythme_horaire = normalize_rythme(request.form.get("rythme_horaire"))
 
 
         cursor.execute("""
             UPDATE clients
-            SET nom=?, email=?, telephone=?, site_web=?
+            SET nom=?, email=?, telephone=?, site_web=?, rythme_horaire=?
             WHERE id=?
-        """, (nom, email, telephone, site_web, id))
+        """, (nom, email, telephone, site_web, rythme_horaire, id))
 
         conn.commit()
         conn.close()
@@ -1924,7 +1981,7 @@ def modifier_client(id):
     client = cursor.fetchone()
     conn.close()
 
-    return render_template("modifier_client.html", client=client)
+    return render_template("modifier_client.html", client=client, rythme_options=RYTHME_OPTIONS)
 @app.route("/export/clients")
 @login_required
 def export_clients():
@@ -1936,6 +1993,7 @@ def export_clients():
         SELECT clients.nom,
                clients.email,
                clients.telephone,
+               COALESCE(clients.rythme_horaire, '1x8') as rythme_horaire,
                COALESCE(SUM(interventions.estimated_duration),0)
         FROM clients
         LEFT JOIN equipements ON equipements.client_id = clients.id
@@ -1947,10 +2005,10 @@ def export_clients():
     conn.close()
 
     def generate():
-        yield "Nom,Email,Telephone,Heures_totales\n"
+        yield "Nom,Email,Telephone,Rythme_horaire,Heures_totales\n"
         for r in rows:
-            heures = round(r[3] / 60, 2)
-            yield f"{r[0]},{r[1]},{r[2]},{heures}\n"
+            heures = round(r[4] / 60, 2)
+            yield f"{r[0]},{r[1]},{r[2]},{r[3]},{heures}\n"
 
     return Response(generate(),
         mimetype="text/csv",
@@ -2142,10 +2200,6 @@ if __name__ == "__main__":
     ensure_upload_dirs()
     init_db()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
-
-
-
-
 
 
 

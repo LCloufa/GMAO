@@ -3,29 +3,42 @@
 
 <h1>Modifier le client</h1>
 
-<div class="card" style="max-width:500px;">
-    <form method="POST" class="form">
-		<form method="POST" autocomplete="off">
-
-        <label>Nom</label>
-        <input type="text" name="nom" value="{{ client['nom'] }}" required>
-
-        <label>Email</label>
-        <input type="email" name="email" value="{{ client['email'] }}">
-
-        <label>Téléphone</label>
-        <input type="text" name="telephone" value="{{ client['telephone'] }}">
-
-	<label>Site web</label>
-	<input type="text" name="site_web" value="{{ client['site_web'] }}">
-
-        <div style="margin-top:20px;">
-            <button type="submit">Enregistrer</button>
-            <a href="/clients" style="margin-left:15px;">Retour</a>
+<div class="card" style="max-width:560px;">
+    <form method="POST" class="form-vertical" autocomplete="off">
+        <div>
+            <label>Nom</label>
+            <input type="text" name="nom" value="{{ client['nom'] }}" required>
         </div>
 
+        <div>
+            <label>Email</label>
+            <input type="email" name="email" value="{{ client['email'] }}">
+        </div>
+
+        <div>
+            <label>Téléphone</label>
+            <input type="text" name="telephone" value="{{ client['telephone'] }}">
+        </div>
+
+        <div>
+            <label>Site web</label>
+            <input type="text" name="site_web" value="{{ client['site_web'] }}">
+        </div>
+
+        <div>
+            <label>Rythme horaire</label>
+            <select name="rythme_horaire">
+                {% for rythme in rythme_options %}
+                    <option value="{{ rythme }}" {% if client['rythme_horaire'] == rythme %}selected{% endif %}>{{ rythme }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div style="margin-top:8px; display:flex; gap:10px; align-items:center;">
+            <button type="submit" class="btn-primary">Enregistrer</button>
+            <a href="/clients" class="btn-secondary">Retour</a>
+        </div>
     </form>
 </div>
-
 
 {% endblock %}
