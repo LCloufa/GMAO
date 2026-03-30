@@ -42,11 +42,12 @@
 
 <div id="newClientModal" style="display:none; position:fixed; inset:0; z-index:1200; background:rgba(15, 23, 42, 0.35);">
     <div id="newClientModalCard" style="position:absolute; left:50%; top:24px; transform:translateX(-50%); width:min(1120px, 92vw); background:#fff; border-radius:22px; padding:30px 34px; max-height:calc(100vh - 48px); overflow:auto;">
-        <div id="newClientModalDragHandle" style="position:absolute; top:0; left:0; right:0; height:88px; cursor:move;" aria-hidden="true"></div>
         <button type="button" onclick="closeNewClientModal()" aria-label="Fermer" style="position:absolute; top:20px; right:20px; border:none; background:transparent; font-size:38px; line-height:1; color:#334155; cursor:pointer;">×</button>
 
-        <h1 style="margin-bottom:24px;">Nouveau client</h1>
-        <hr style="border:none; border-top:1px solid #e2e8f0; margin:0 0 24px;">
+        <div id="newClientModalHeader" style="cursor:move; padding-right:56px;">
+            <h1 style="margin-bottom:24px;">Nouveau client</h1>
+            <hr style="border:none; border-top:1px solid #e2e8f0; margin:0 0 24px;">
+        </div>
 
         <form action="/clients/add" method="POST" class="form" autocomplete="off" onsubmit="syncClientFormFields(this)">
             <input type="text" name="fake_username" autocomplete="username" tabindex="-1" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;">
@@ -105,7 +106,7 @@
     function initNewClientModalDrag() {
         const modal = document.getElementById("newClientModal");
         const card = document.getElementById("newClientModalCard");
-        const handle = document.getElementById("newClientModalDragHandle");
+        const handle = document.getElementById("newClientModalHeader");
         if (!modal || !card || !handle || handle.dataset.dragReady === "1") return;
 
         handle.dataset.dragReady = "1";
