@@ -4,14 +4,16 @@
 <h1 style="margin-bottom:30px;">Nouveau client</h1>
 
 <form action="/clients/nouveau" method="POST" class="form" autocomplete="off">
+    <input type="text" name="fake_username" autocomplete="username" tabindex="-1" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;">
+    <input type="password" name="fake_password" autocomplete="new-password" tabindex="-1" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;">
     <div style="margin-bottom:20px;">
-        <input type="text" name="nom" placeholder="Nom du client" required style="width:100%;" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <input type="text" name="nom" placeholder="Nom du client" required style="width:100%;" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');">
     </div>
 
     <div class="form-row">
-        <input type="email" name="email" placeholder="Email" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
-        <input type="text" name="telephone" placeholder="Téléphone" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
-        <input type="text" name="site_web" placeholder="Site web" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <input type="email" name="email" placeholder="Email" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');">
+        <input type="text" name="telephone" placeholder="Téléphone" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');">
+        <input type="text" name="site_web" placeholder="Site web" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');">
     </div>
 
     <div class="form-row">
