@@ -4,7 +4,6 @@
 <h1 style="margin-bottom:30px;">Modifier l'équipement</h1>
 
 <form method="POST" enctype="multipart/form-data" class="form">
-    <form method="POST" autocomplete="off">
 
 <div class="form-row">
     <div class="floating-group">
@@ -12,7 +11,7 @@
            name="nom"
            value="{{ equipement.nom }}"
            placeholder=" "
-           class="floating-input">
+           class="floating-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
     <label class="floating-label">Nom</label>
 </div>
     <div class="floating-group">
@@ -20,15 +19,15 @@
            name="code"
            value="{{ equipement.code }}"
            placeholder=" "
-           class="floating-input">
+           class="floating-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
     <label class="floating-label">Code</label>
 </div>
-    <<div class="floating-group">
+    <div class="floating-group">
     <input type="text"
            name="type"
            value="{{ equipement.type }}"
            placeholder=" "
-           class="floating-input">
+           class="floating-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
     <label class="floating-label">Type</label>
 </div>
 </div>
@@ -45,7 +44,7 @@
            name="emplacement"
            value="{{ equipement.emplacement }}"
            placeholder=" "
-           class="floating-input">
+           class="floating-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
     <label class="floating-label">Emplacement</label>
 </div>
 
@@ -65,7 +64,7 @@
            name="fabricant"
            value="{{ equipement.fabricant }}"
            placeholder=" "
-           class="floating-input">
+           class="floating-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
     <label class="floating-label">Fabricant</label>
 </div>
     <div class="floating-group">
@@ -73,7 +72,7 @@
            name="modele"
            value="{{ equipement.modele }}"
            placeholder=" "
-           class="floating-input">
+           class="floating-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
     <label class="floating-label">Modèle</label>
 </div>
     <div class="floating-group">
@@ -81,7 +80,7 @@
            name="numero_serie"
            value="{{ equipement.nmero_serie }}"
            placeholder=" "
-           class="floating-input">
+           class="floating-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
     <label class="floating-label">Numéro de série</label>
 </div>
 </div>
@@ -91,7 +90,7 @@
            name="date_installation"
            value="{{ equipement.date_installation }}"
            placeholder=" "
-           class="floating-input">
+           class="floating-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
     <label class="floating-label">Date d'installation</label>
 </div>
 </div>

@@ -17,7 +17,7 @@
 </div>
 
 <form method="GET" style="display:flex; gap:10px; margin-bottom:18px; flex-wrap:wrap;">
-  <input type="text" name="q" value="{{ q }}" placeholder="Recherche (intervention, équipement, travaux...)" style="min-width:280px;">
+  <input type="text" name="q" value="{{ q }}" placeholder="Recherche (intervention, équipement, travaux...)" style="min-width:280px;" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
   <select name="etat">
     <option value="">Tous les états</option>
     <option value="Opérationnel" {% if etat=='Opérationnel' %}selected{% endif %}>Opérationnel</option>
