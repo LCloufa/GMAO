@@ -1918,7 +1918,30 @@ def clients():
     clients = cursor.fetchall()
     conn.close()
 
-    return render_template("clients.html", clients=clients)
+    return render_template("clients.html", clients=clients, rythme_options=RYTHME_OPTIONS)
+
+@app.route("/clients/nouveau", methods=["GET", "POST"])
+@login_required
+def nouveau_client():
+    if request.method == "POST":
+        nom = request.form.get("nom")
+        email = request.form.get("email")
+        telephone = request.form.get("telephone")
+        site_web = request.form.get("site_web")
+        rythme_horaire = normalize_rythme(request.form.get("rythme_horaire"))
+
+        conn = sqlite3.connect("database.db")
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO clients (nom, email, telephone, site_web, rythme_horaire)
+            VALUES (?, ?, ?, ?, ?)
+        """, (nom, email, telephone, site_web, rythme_horaire))
+        conn.commit()
+        conn.close()
+
+        return redirect("/clients")
+
+    return render_template("nouvel_client.html", rythme_options=RYTHME_OPTIONS)
 
 @app.route("/clients/add", methods=["POST"])
 def add_client():
@@ -1935,7 +1958,6 @@ def add_client():
         INSERT INTO clients (nom, email, telephone, site_web, rythme_horaire)
         VALUES (?, ?, ?, ?, ?)
     """, (nom, email, telephone, site_web, rythme_horaire))
-
     conn.commit()
     conn.close()
 
@@ -2200,8 +2222,6 @@ if __name__ == "__main__":
     ensure_upload_dirs()
     init_db()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
-
-
 
 
 
