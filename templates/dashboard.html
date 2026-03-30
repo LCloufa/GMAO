@@ -60,6 +60,70 @@
     </div>
 
 </div>
+
+<h2 style="margin-bottom:15px;">Indicateurs maintenance</h2>
+
+<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; margin-bottom:28px;">
+    <div class="card">
+        <h3>Taux global</h3>
+        <p style="color:#0f766e;">{{ maintenance_global.rate }}%</p>
+        <small>{{ maintenance_global.completed }} / {{ maintenance_global.total }} interventions terminées</small>
+    </div>
+    <div class="card">
+        <h3>Planifiées</h3>
+        <p style="color:#a16207;">{{ maintenance_global.planned }}</p>
+    </div>
+    <div class="card">
+        <h3>En cours</h3>
+        <p style="color:#2563eb;">{{ maintenance_global.in_progress }}</p>
+    </div>
+    <div class="card">
+        <h3>Annulées / Reportées</h3>
+        <p style="color:#b91c1c;">{{ maintenance_global.cancelled + maintenance_global.postponed }}</p>
+    </div>
+</div>
+
+<h3 style="margin-bottom:12px;">Par client</h3>
+<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:14px; margin-bottom:30px;">
+    {% for c in indicateurs_clients %}
+    <div style="background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:14px;">
+        <div style="font-weight:700; margin-bottom:8px;">{{ c.nom }}</div>
+        <div style="font-size:22px; color:#0f766e; font-weight:700;">{{ c.rate }}%</div>
+        <div style="font-size:12px; color:#64748b;">{{ c.completed }} / {{ c.total }} terminées · {{ c.in_progress }} en cours · {{ c.planned }} planifiées</div>
+    </div>
+    {% endfor %}
+</div>
+
+<h3 style="margin-bottom:12px;">Par équipement</h3>
+<div style="overflow:auto; margin-bottom:35px;">
+<table class="table-modern" style="min-width:780px;">
+    <thead>
+        <tr>
+            <th>Équipement</th>
+            <th>Client</th>
+            <th>Taux</th>
+            <th>Total</th>
+            <th>Terminées</th>
+            <th>En cours</th>
+            <th>Planifiées</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for e in indicateurs_equipements %}
+        <tr>
+            <td>{{ e.nom }}</td>
+            <td>{{ e.client_nom }}</td>
+            <td><strong>{{ e.rate }}%</strong></td>
+            <td>{{ e.total }}</td>
+            <td>{{ e.completed }}</td>
+            <td>{{ e.in_progress }}</td>
+            <td>{{ e.planned }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
 {% set pannes = equipements_etat | selectattr(3, "equalto", "En panne") | list %}
 
 {% if pannes|length > 0 %}
