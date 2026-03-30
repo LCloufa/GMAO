@@ -5,24 +5,26 @@
 
 <div class="card" style="max-width:560px;">
     <form method="POST" class="form-vertical" autocomplete="off">
+        <input type="text" name="fake_username" autocomplete="username" tabindex="-1" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;">
+        <input type="password" name="fake_password" autocomplete="new-password" tabindex="-1" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;">
         <div>
             <label>Nom</label>
-            <input type="text" name="nom" value="{{ client['nom'] }}" required>
+            <input type="text" name="nom" value="{{ client['nom'] }}" required autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');">
         </div>
 
         <div>
             <label>Email</label>
-            <input type="email" name="email" value="{{ client['email'] }}">
+            <input type="email" name="email" value="{{ client['email'] }}" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');">
         </div>
 
         <div>
             <label>Téléphone</label>
-            <input type="text" name="telephone" value="{{ client['telephone'] }}">
+            <input type="text" name="telephone" value="{{ client['telephone'] }}" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');">
         </div>
 
         <div>
             <label>Site web</label>
-            <input type="text" name="site_web" value="{{ client['site_web'] }}">
+            <input type="text" name="site_web" value="{{ client['site_web'] }}" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');">
         </div>
 
         <div>
