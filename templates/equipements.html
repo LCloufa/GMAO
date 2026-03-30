@@ -11,13 +11,17 @@
 </div>
 
 <form id="equipmentFilters" method="get" action="/equipements" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin-bottom:24px;">
+    <input type="hidden" id="q_hidden" name="q" value="{{ recherche }}">
     <div style="display:flex; flex-direction:column; min-width:260px; flex:1;">
-        <label for="q" style="font-weight:600; margin-bottom:6px;">Recherche</label>
-        <input id="q"
-               name="q"
+        <label for="q_display" style="font-weight:600; margin-bottom:6px;">Recherche</label>
+        <input id="q_display"
                type="text"
                value="{{ recherche }}"
                placeholder="Nom, code, type, série, emplacement, client..."
+               autocomplete="off"
+               autocapitalize="off"
+               autocorrect="off"
+               spellcheck="false"
                style="padding:10px; border:1px solid #ddd; border-radius:8px;">
     </div>
 
@@ -76,20 +80,34 @@
 let clickTimer = null;
 
 const filterForm = document.getElementById("equipmentFilters");
-const searchInput = document.getElementById("q");
+const searchInput = document.getElementById("q_display");
+const hiddenSearchInput = document.getElementById("q_hidden");
 const clientSelect = document.getElementById("client_id");
 let filterTimer = null;
 
 function submitFilters() {
+    if (hiddenSearchInput && searchInput) {
+        hiddenSearchInput.value = searchInput.value.trim();
+    }
     if (filterForm) {
         filterForm.requestSubmit();
     }
 }
 
 if (searchInput) {
+    searchInput.name = "q_display_" + Date.now();
     searchInput.addEventListener("input", function() {
         clearTimeout(filterTimer);
         filterTimer = setTimeout(submitFilters, 300);
+    });
+}
+
+if (filterForm) {
+    filterForm.setAttribute("autocomplete", "off");
+    filterForm.addEventListener("submit", function () {
+        if (hiddenSearchInput && searchInput) {
+            hiddenSearchInput.value = searchInput.value.trim();
+        }
     });
 }
 
