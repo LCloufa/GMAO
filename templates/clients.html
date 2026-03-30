@@ -41,7 +41,8 @@
 </table>
 
 <div id="newClientModal" style="display:none; position:fixed; inset:0; z-index:1200; background:rgba(15, 23, 42, 0.35);">
-    <div style="position:relative; width:min(1120px, 92vw); margin:24px auto; background:#fff; border-radius:22px; padding:30px 34px; max-height:calc(100vh - 48px); overflow:auto;">
+    <div id="newClientModalCard" style="position:absolute; left:50%; top:24px; transform:translateX(-50%); width:min(1120px, 92vw); background:#fff; border-radius:22px; padding:30px 34px; max-height:calc(100vh - 48px); overflow:auto;">
+        <div id="newClientModalDragHandle" style="position:absolute; top:0; left:0; right:0; height:88px; cursor:move;" aria-hidden="true"></div>
         <button type="button" onclick="closeNewClientModal()" aria-label="Fermer" style="position:absolute; top:20px; right:20px; border:none; background:transparent; font-size:38px; line-height:1; color:#334155; cursor:pointer;">×</button>
 
         <h1 style="margin-bottom:24px;">Nouveau client</h1>
@@ -95,9 +96,70 @@
 </div>
 
 <script>
+    const newClientModalDragState = {
+        isDragging: false,
+        pointerId: null,
+        offsetX: 0,
+        offsetY: 0
+    };
+
+    function initNewClientModalDrag() {
+        const modal = document.getElementById("newClientModal");
+        const card = document.getElementById("newClientModalCard");
+        const handle = document.getElementById("newClientModalDragHandle");
+        if (!modal || !card || !handle || handle.dataset.dragReady === "1") return;
+
+        handle.dataset.dragReady = "1";
+
+        handle.addEventListener("pointerdown", function (event) {
+            if (event.button !== 0) return;
+            const rect = card.getBoundingClientRect();
+            newClientModalDragState.isDragging = true;
+            newClientModalDragState.pointerId = event.pointerId;
+            newClientModalDragState.offsetX = event.clientX - rect.left;
+            newClientModalDragState.offsetY = event.clientY - rect.top;
+            card.style.transform = "none";
+            card.setPointerCapture(event.pointerId);
+        });
+
+        handle.addEventListener("pointermove", function (event) {
+            if (!newClientModalDragState.isDragging || event.pointerId !== newClientModalDragState.pointerId) return;
+            const cardWidth = card.offsetWidth;
+            const cardHeight = card.offsetHeight;
+            const maxLeft = Math.max(window.innerWidth - cardWidth, 0);
+            const maxTop = Math.max(window.innerHeight - cardHeight, 0);
+            const nextLeft = Math.min(Math.max(event.clientX - newClientModalDragState.offsetX, 0), maxLeft);
+            const nextTop = Math.min(Math.max(event.clientY - newClientModalDragState.offsetY, 0), maxTop);
+            card.style.left = nextLeft + "px";
+            card.style.top = nextTop + "px";
+        });
+
+        const stopDrag = function (event) {
+            if (event.pointerId !== newClientModalDragState.pointerId) return;
+            newClientModalDragState.isDragging = false;
+            newClientModalDragState.pointerId = null;
+            if (card.hasPointerCapture(event.pointerId)) {
+                card.releasePointerCapture(event.pointerId);
+            }
+        };
+
+        handle.addEventListener("pointerup", stopDrag);
+        handle.addEventListener("pointercancel", stopDrag);
+    }
+
+    function centerNewClientModal() {
+        const card = document.getElementById("newClientModalCard");
+        if (!card) return;
+        card.style.left = "50%";
+        card.style.top = "24px";
+        card.style.transform = "translateX(-50%)";
+    }
+
     function openNewClientModal() {
         const modal = document.getElementById("newClientModal");
         if (!modal) return;
+        initNewClientModalDrag();
+        centerNewClientModal();
         modal.style.display = "block";
         document.body.style.overflow = "hidden";
     }
