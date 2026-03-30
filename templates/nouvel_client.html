@@ -3,6 +3,25 @@
 
 <h1 style="margin-bottom:30px;">Nouveau client</h1>
 
+<style>
+    .ce-field {
+        min-height: 44px;
+        border: 1px solid #cbd5e1;
+        border-radius: 14px;
+        padding: 10px 14px;
+        background: #fff;
+        outline: none;
+    }
+    .ce-field:focus {
+        border-color: #111827;
+        box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.08);
+    }
+    .ce-field:empty::before {
+        content: attr(data-placeholder);
+        color: #64748b;
+    }
+</style>
+
 <form action="/clients/nouveau" method="POST" class="form" autocomplete="off" onsubmit="syncClientFormFields(this)">
     <input type="text" name="fake_username" autocomplete="username" tabindex="-1" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;">
     <input type="password" name="fake_password" autocomplete="new-password" tabindex="-1" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;">
@@ -11,13 +30,13 @@
     <input type="hidden" name="telephone">
     <input type="hidden" name="site_web">
     <div style="margin-bottom:20px;">
-        <input type="search" name="nom_visible" placeholder="Nom du client" required style="width:100%;" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');">
+        <div class="ce-field" contenteditable="true" data-field="nom" data-placeholder="Nom du client" tabindex="0"></div>
     </div>
 
     <div class="form-row">
-        <input type="email" name="email_visible" placeholder="Email" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
-        <input type="text" name="telephone_visible" placeholder="Téléphone" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
-        <input type="text" name="site_web_visible" placeholder="Site web" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <div class="ce-field" contenteditable="true" data-field="email" data-placeholder="Email" tabindex="0"></div>
+        <div class="ce-field" contenteditable="true" data-field="telephone" data-placeholder="Téléphone" tabindex="0"></div>
+        <div class="ce-field" contenteditable="true" data-field="site_web" data-placeholder="Site web" tabindex="0"></div>
     </div>
 
     <div class="form-row">
@@ -36,10 +55,21 @@
 
 <script>
     function syncClientFormFields(form) {
-        form.elements.nom.value = form.elements.nom_visible.value;
-        form.elements.email.value = form.elements.email_visible.value;
-        form.elements.telephone.value = form.elements.telephone_visible.value;
-        form.elements.site_web.value = form.elements.site_web_visible.value;
+        const get = (field) => {
+            const el = form.querySelector(`.ce-field[data-field="${field}"]`);
+            return (el?.textContent || "").trim();
+        };
+
+        form.elements.nom.value = get("nom");
+        form.elements.email.value = get("email");
+        form.elements.telephone.value = get("telephone");
+        form.elements.site_web.value = get("site_web");
+
+        if (!form.elements.nom.value) {
+            alert("Le nom du client est obligatoire.");
+            return false;
+        }
+        return true;
     }
 </script>
 

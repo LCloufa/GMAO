@@ -3,6 +3,25 @@
 
 <h1>Modifier le client</h1>
 
+<style>
+    .ce-field {
+        min-height: 44px;
+        border: 1px solid #cbd5e1;
+        border-radius: 14px;
+        padding: 10px 14px;
+        background: #fff;
+        outline: none;
+    }
+    .ce-field:focus {
+        border-color: #111827;
+        box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.08);
+    }
+    .ce-field:empty::before {
+        content: attr(data-placeholder);
+        color: #64748b;
+    }
+</style>
+
 <div class="card" style="max-width:560px;">
     <form method="POST" class="form-vertical" autocomplete="off" onsubmit="syncClientFormFields(this)">
         <input type="text" name="fake_username" autocomplete="username" tabindex="-1" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;">
@@ -13,22 +32,22 @@
         <input type="hidden" name="site_web" value="{{ client['site_web'] }}">
         <div>
             <label>Nom</label>
-            <input type="search" name="nom_visible" value="{{ client['nom'] }}" required autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');">
+            <div class="ce-field" contenteditable="true" data-field="nom" data-placeholder="Nom du client" tabindex="0">{{ client['nom'] or '' }}</div>
         </div>
 
         <div>
             <label>Email</label>
-            <input type="email" name="email_visible" value="{{ client['email'] }}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+            <div class="ce-field" contenteditable="true" data-field="email" data-placeholder="Email" tabindex="0">{{ client['email'] or '' }}</div>
         </div>
 
         <div>
             <label>Téléphone</label>
-            <input type="text" name="telephone_visible" value="{{ client['telephone'] }}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+            <div class="ce-field" contenteditable="true" data-field="telephone" data-placeholder="Téléphone" tabindex="0">{{ client['telephone'] or '' }}</div>
         </div>
 
         <div>
             <label>Site web</label>
-            <input type="text" name="site_web_visible" value="{{ client['site_web'] }}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+            <div class="ce-field" contenteditable="true" data-field="site_web" data-placeholder="Site web" tabindex="0">{{ client['site_web'] or '' }}</div>
         </div>
 
         <div>
@@ -49,10 +68,21 @@
 
 <script>
     function syncClientFormFields(form) {
-        form.elements.nom.value = form.elements.nom_visible.value;
-        form.elements.email.value = form.elements.email_visible.value;
-        form.elements.telephone.value = form.elements.telephone_visible.value;
-        form.elements.site_web.value = form.elements.site_web_visible.value;
+        const get = (field) => {
+            const el = form.querySelector(`.ce-field[data-field="${field}"]`);
+            return (el?.textContent || "").trim();
+        };
+
+        form.elements.nom.value = get("nom");
+        form.elements.email.value = get("email");
+        form.elements.telephone.value = get("telephone");
+        form.elements.site_web.value = get("site_web");
+
+        if (!form.elements.nom.value) {
+            alert("Le nom du client est obligatoire.");
+            return false;
+        }
+        return true;
     }
 </script>
 

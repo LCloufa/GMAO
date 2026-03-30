@@ -40,6 +40,25 @@
 
 </table>
 
+<style>
+    .ce-field {
+        min-height: 44px;
+        border: 1px solid #cbd5e1;
+        border-radius: 14px;
+        padding: 10px 14px;
+        background: #fff;
+        outline: none;
+    }
+    .ce-field:focus {
+        border-color: #111827;
+        box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.08);
+    }
+    .ce-field:empty::before {
+        content: attr(data-placeholder);
+        color: #64748b;
+    }
+</style>
+
 <div id="newClientModal" style="display:none; position:fixed; inset:0; z-index:1200; background:rgba(15, 23, 42, 0.35);">
     <div style="position:relative; width:min(1120px, 92vw); margin:24px auto; background:#fff; border-radius:22px; padding:30px 34px; max-height:calc(100vh - 48px); overflow:auto;">
         <button type="button" onclick="closeNewClientModal()" aria-label="Fermer" style="position:absolute; top:20px; right:20px; border:none; background:transparent; font-size:38px; line-height:1; color:#334155; cursor:pointer;">×</button>
@@ -57,24 +76,24 @@
 
             <div style="margin-bottom:20px;">
                 <label style="display:block; margin-bottom:8px; font-weight:600;">Nom *</label>
-                <input type="search" name="nom_visible" required style="width:100%;" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');">
+                <div class="ce-field" contenteditable="true" data-field="nom" data-placeholder="Nom du client" tabindex="0"></div>
             </div>
 
             <div class="form-row">
                 <div>
                     <label style="display:block; margin-bottom:8px; font-weight:600;">Email</label>
-                    <input type="email" name="email_visible" placeholder="contact@client.com" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+                    <div class="ce-field" contenteditable="true" data-field="email" data-placeholder="contact@client.com" tabindex="0"></div>
                 </div>
                 <div>
                     <label style="display:block; margin-bottom:8px; font-weight:600;">Téléphone</label>
-                    <input type="text" name="telephone_visible" placeholder="+33 ..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+                    <div class="ce-field" contenteditable="true" data-field="telephone" data-placeholder="+33 ..." tabindex="0"></div>
                 </div>
             </div>
 
             <div class="form-row">
                 <div>
                     <label style="display:block; margin-bottom:8px; font-weight:600;">Site web</label>
-                    <input type="text" name="site_web_visible" placeholder="https://..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+                    <div class="ce-field" contenteditable="true" data-field="site_web" data-placeholder="https://..." tabindex="0"></div>
                 </div>
                 <div>
                     <label style="display:block; margin-bottom:8px; font-weight:600;">Rythme horaire</label>
@@ -114,10 +133,21 @@
     });
 
     function syncClientFormFields(form) {
-        form.elements.nom.value = form.elements.nom_visible.value;
-        form.elements.email.value = form.elements.email_visible.value;
-        form.elements.telephone.value = form.elements.telephone_visible.value;
-        form.elements.site_web.value = form.elements.site_web_visible.value;
+        const get = (field) => {
+            const el = form.querySelector(`.ce-field[data-field="${field}"]`);
+            return (el?.textContent || "").trim();
+        };
+
+        form.elements.nom.value = get("nom");
+        form.elements.email.value = get("email");
+        form.elements.telephone.value = get("telephone");
+        form.elements.site_web.value = get("site_web");
+
+        if (!form.elements.nom.value) {
+            alert("Le nom du client est obligatoire.");
+            return false;
+        }
+        return true;
     }
 </script>
 
