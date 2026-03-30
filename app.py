@@ -613,6 +613,111 @@ def dashboard():
         if e[3] in ("Maintenance", "En panne")
     )
 
+    # ==========================
+    # INDICATEURS MAINTENANCE
+    # ==========================
+
+    base_where = ""
+    base_params = []
+    if selected_client:
+        base_where = "WHERE e.client_id = ?"
+        base_params = [selected_client]
+
+    cursor.execute(
+        f"""
+        SELECT
+            COUNT(*) AS total,
+            SUM(CASE WHEN i.status = 'completed' THEN 1 ELSE 0 END) AS completed,
+            SUM(CASE WHEN i.status = 'planned' THEN 1 ELSE 0 END) AS planned,
+            SUM(CASE WHEN i.status = 'in_progress' THEN 1 ELSE 0 END) AS in_progress,
+            SUM(CASE WHEN i.status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled,
+            SUM(CASE WHEN i.status = 'postponed' THEN 1 ELSE 0 END) AS postponed
+        FROM interventions i
+        JOIN equipements e ON i.equipment_id = e.id
+        {base_where}
+        """,
+        base_params,
+    )
+    row = cursor.fetchone() or (0, 0, 0, 0, 0, 0)
+    global_total, global_completed, global_planned, global_in_progress, global_cancelled, global_postponed = [
+        int(v or 0) for v in row
+    ]
+    global_rate = round((global_completed / global_total) * 100, 1) if global_total else 0
+
+    cursor.execute(
+        f"""
+        SELECT
+            c.id,
+            COALESCE(c.nom, 'Sans client') AS client_nom,
+            COUNT(i.id) AS total,
+            SUM(CASE WHEN i.status = 'completed' THEN 1 ELSE 0 END) AS completed,
+            SUM(CASE WHEN i.status = 'planned' THEN 1 ELSE 0 END) AS planned,
+            SUM(CASE WHEN i.status = 'in_progress' THEN 1 ELSE 0 END) AS in_progress,
+            SUM(CASE WHEN i.status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled,
+            SUM(CASE WHEN i.status = 'postponed' THEN 1 ELSE 0 END) AS postponed
+        FROM equipements e
+        LEFT JOIN clients c ON e.client_id = c.id
+        LEFT JOIN interventions i ON i.equipment_id = e.id
+        {base_where}
+        GROUP BY c.id, c.nom
+        ORDER BY client_nom ASC
+        """,
+        base_params,
+    )
+    indicateurs_clients = []
+    for client_row in cursor.fetchall():
+        total = int(client_row[2] or 0)
+        completed = int(client_row[3] or 0)
+        indicateurs_clients.append({
+            "id": client_row[0],
+            "nom": client_row[1],
+            "total": total,
+            "completed": completed,
+            "planned": int(client_row[4] or 0),
+            "in_progress": int(client_row[5] or 0),
+            "cancelled": int(client_row[6] or 0),
+            "postponed": int(client_row[7] or 0),
+            "rate": round((completed / total) * 100, 1) if total else 0,
+        })
+
+    cursor.execute(
+        f"""
+        SELECT
+            e.id,
+            e.nom,
+            COALESCE(c.nom, 'Sans client') AS client_nom,
+            COUNT(i.id) AS total,
+            SUM(CASE WHEN i.status = 'completed' THEN 1 ELSE 0 END) AS completed,
+            SUM(CASE WHEN i.status = 'planned' THEN 1 ELSE 0 END) AS planned,
+            SUM(CASE WHEN i.status = 'in_progress' THEN 1 ELSE 0 END) AS in_progress,
+            SUM(CASE WHEN i.status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled,
+            SUM(CASE WHEN i.status = 'postponed' THEN 1 ELSE 0 END) AS postponed
+        FROM equipements e
+        LEFT JOIN clients c ON e.client_id = c.id
+        LEFT JOIN interventions i ON i.equipment_id = e.id
+        {base_where}
+        GROUP BY e.id, e.nom, c.nom
+        ORDER BY client_nom ASC, e.nom ASC
+        """,
+        base_params,
+    )
+    indicateurs_equipements = []
+    for eq_row in cursor.fetchall():
+        total = int(eq_row[3] or 0)
+        completed = int(eq_row[4] or 0)
+        indicateurs_equipements.append({
+            "id": eq_row[0],
+            "nom": eq_row[1],
+            "client_nom": eq_row[2],
+            "total": total,
+            "completed": completed,
+            "planned": int(eq_row[5] or 0),
+            "in_progress": int(eq_row[6] or 0),
+            "cancelled": int(eq_row[7] or 0),
+            "postponed": int(eq_row[8] or 0),
+            "rate": round((completed / total) * 100, 1) if total else 0,
+        })
+
     conn.close()
 
     return render_template(
@@ -624,7 +729,18 @@ def dashboard():
         maintenance_today=maintenance_today,
         equipements_etat=equipements_etat,
         clients=clients,
-        selected_client=selected_client
+        selected_client=selected_client,
+        maintenance_global={
+            "total": global_total,
+            "completed": global_completed,
+            "planned": global_planned,
+            "in_progress": global_in_progress,
+            "cancelled": global_cancelled,
+            "postponed": global_postponed,
+            "rate": global_rate,
+        },
+        indicateurs_clients=indicateurs_clients,
+        indicateurs_equipements=indicateurs_equipements,
     )
 # ==========================
 # ÉQUIPEMENTS
