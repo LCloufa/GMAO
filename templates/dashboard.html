@@ -1,17 +1,14 @@
 {% extends "base.html" %}
 {% block content %}
 
-<h1 style="margin-bottom:30px;">Tableau de bord</h1>
-<form method="GET" style="margin-bottom:30px;">
-	<form method="POST" autocomplete="off">
-    <div style="display:flex; gap:20px; align-items:center;">
+<div class="dashboard-shell">
+<h1 class="dashboard-title">Tableau de bord</h1>
+<form method="GET" class="dashboard-filters">
+    <div class="dashboard-filter-row">
 
         <select name="client"
                 onchange="this.form.submit()"
-                style="padding:10px 14px;
-                       border-radius:10px;
-                       border:1px solid #e2e8f0;
-                       min-width:220px;">
+                class="dashboard-select">
 
             <option value="">Tous les clients</option>
 
@@ -26,77 +23,71 @@
         </select>
 
         {% if selected_client %}
-            <a href="/"
-               style="text-decoration:none;
-                      background:#e2e8f0;
-                      padding:10px 16px;
-                      border-radius:10px;">
-                Réinitialiser
-            </a>
+            <a href="/" class="dashboard-reset-link">Réinitialiser</a>
         {% endif %}
 
     </div>
 </form>
-<div style="margin-bottom:20px; display:flex; gap:10px;">
+<div class="dashboard-toolbar">
 
 <a class="btn-primary" href="/export/gmao-xlsx">⬇ Export Excel (modèle)</a>
 
 </div>
-<div class="cards" style="margin-bottom:40px;">
+<div class="cards dashboard-cards-main">
 
-    <div class="card">
+    <div class="card dashboard-kpi-card">
         <h3>Équipements</h3>
-        <p>{{ nb_equipements }}</p>
+        <p class="kpi-value kpi-neutral">{{ nb_equipements }}</p>
     </div>
 
-    <div class="card">
+    <div class="card dashboard-kpi-card">
         <h3>Maintenance aujourd’hui</h3>
-        <p style="color:#eab308;">{{ maintenance_today }}</p>
+        <p class="kpi-value kpi-warning">{{ maintenance_today }}</p>
     </div>
 
-    <div class="card">
+    <div class="card dashboard-kpi-card">
         <h3>Interventions en cours</h3>
-        <p style="color:#2563eb;">{{ en_cours }}</p>
+        <p class="kpi-value kpi-info">{{ en_cours }}</p>
     </div>
 
 </div>
 
-<h2 style="margin-bottom:15px;">Indicateurs maintenance</h2>
+<h2 class="dashboard-section-title">Indicateurs maintenance</h2>
 
-<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; margin-bottom:28px;">
-    <div class="card">
+<div class="dashboard-grid dashboard-grid-metrics">
+    <div class="card dashboard-metric-card">
         <h3>Disponibilité globale (30j)</h3>
-        <p style="color:#0f766e;">{{ maintenance_global.rate }}%</p>
+        <p class="kpi-value kpi-success">{{ maintenance_global.rate }}%</p>
         <small>Basée sur le rythme horaire de chaque client</small>
     </div>
-    <div class="card">
+    <div class="card dashboard-metric-card">
         <h3>Planifiées</h3>
-        <p style="color:#a16207;">{{ maintenance_global.planned }}</p>
+        <p class="kpi-value kpi-amber">{{ maintenance_global.planned }}</p>
     </div>
-    <div class="card">
+    <div class="card dashboard-metric-card">
         <h3>En cours</h3>
-        <p style="color:#2563eb;">{{ maintenance_global.in_progress }}</p>
+        <p class="kpi-value kpi-info">{{ maintenance_global.in_progress }}</p>
     </div>
-    <div class="card">
+    <div class="card dashboard-metric-card">
         <h3>Annulées / Reportées</h3>
-        <p style="color:#b91c1c;">{{ maintenance_global.cancelled + maintenance_global.postponed }}</p>
+        <p class="kpi-value kpi-danger">{{ maintenance_global.cancelled + maintenance_global.postponed }}</p>
     </div>
 </div>
 
-<h3 style="margin-bottom:12px;">Par client</h3>
-<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:14px; margin-bottom:30px;">
+<h3 class="dashboard-subtitle">Par client</h3>
+<div class="dashboard-grid dashboard-grid-clients">
     {% for c in indicateurs_clients %}
-    <div style="background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:14px;">
-        <div style="font-weight:700; margin-bottom:8px;">{{ c.nom }}</div>
-        <div style="font-size:22px; color:#0f766e; font-weight:700;">{{ c.disponibilite }}%</div>
-        <div style="font-size:12px; color:#64748b;">Rythme {{ c.rythme_horaire }} · {{ c.equipment_count }} équipement(s) · indisponibilité: {{ c.downtime_minutes }} min (30j)</div>
+    <div class="dashboard-client-card">
+        <div class="dashboard-client-name">{{ c.nom }}</div>
+        <div class="dashboard-client-rate">{{ c.disponibilite }}%</div>
+        <div class="dashboard-client-meta">Rythme {{ c.rythme_horaire }} · {{ c.equipment_count }} équipement(s) · indisponibilité: {{ c.downtime_minutes }} min (30j)</div>
     </div>
     {% endfor %}
 </div>
 
-<h3 style="margin-bottom:12px;">Par équipement</h3>
-<div style="overflow:auto; margin-bottom:35px;">
-<table class="table-modern" style="min-width:780px;">
+<h3 class="dashboard-subtitle">Par équipement</h3>
+<div class="dashboard-table-wrapper">
+<table class="table-modern dashboard-table">
     <thead>
         <tr>
             <th>Équipement</th>
@@ -127,18 +118,14 @@
 {% set pannes = equipements_etat | selectattr(3, "equalto", "En panne") | list %}
 
 {% if pannes|length > 0 %}
-<div style="background:#fff7ed;
-            border:1px solid #fed7aa;
-            padding:25px;
-            border-radius:18px;
-            margin-bottom:40px;">
+<div class="dashboard-alert">
 
-    <h2 style="color:#b91c1c; margin-bottom:15px;">
+    <h2 class="dashboard-alert-title">
         ⚠ Attention requise
     </h2>
 
     {% for eq in pannes %}
-        <div style="display:flex; justify-content:space-between; padding:12px 0;">
+        <div class="dashboard-alert-item">
             <strong>{{ eq[1] }}</strong>
             <span class="badge priority-critical">En panne</span>
         </div>
@@ -147,25 +134,16 @@
 </div>
 {% endif %}
 
-<h2 style="margin-bottom:20px;">État des équipements</h2>
+<h2 class="dashboard-section-title">État des équipements</h2>
 
-<div style="display:grid;
-            grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
-            gap:20px;
-            margin-bottom:50px;">
+<div class="dashboard-grid dashboard-grid-equipment">
 
 {% for eq in equipements_etat %}
 
-    <div style="background:white;
-                border-radius:18px;
-                padding:20px;
-                box-shadow:0 10px 25px rgba(0,0,0,0.05);
-                display:flex;
-                justify-content:space-between;
-                align-items:center;">
+    <div class="dashboard-equipment-card">
 
         <div>
-            <div style="font-weight:600;">
+            <div class="dashboard-equipment-name">
                 {{ eq[1] }}
             </div>
         </div>
@@ -187,7 +165,7 @@
 
 {% endfor %}
 </div>
-<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+<div class="dashboard-planning-header">
 
     <h2 style="margin:0;">Planning</h2>
 
@@ -197,7 +175,6 @@
     </div>
 
 </div>
-
 <div id="calendarView">
     <div id="calendar"></div>
 </div>
@@ -214,6 +191,7 @@
 	<div class="gantt-container">
         <div class="gantt-grid" id="ganttGrid"></div>
     </div>
+</div>
 </div>
 
 <script>
@@ -580,7 +558,4 @@ window.setMonth = setMonth;
 
 
 {% endblock %}
-
-
-
 
