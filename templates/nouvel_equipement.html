@@ -7,7 +7,6 @@
       method="POST" 
       enctype="multipart/form-data" 
       class="form">
-      <form method="POST" autocomplete="off">
 
     <!-- Nom pleine largeur -->
     <div style="margin-bottom:20px;">
@@ -15,15 +14,15 @@
                name="nom"
                placeholder="Nom de l'équipement"
                required
-               style="width:100%;">
+               style="width:100%;" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
     </div>
 
     <!-- Bloc 1 -->
     <div class="form-row">
 
-        <input type="text" name="code" placeholder="Code">
+        <input type="text" name="code" placeholder="Code" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
 
-        <input type="text" name="type" placeholder="Type">
+        <input type="text" name="type" placeholder="Type" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
 
         <select name="statut">
             <option value="Opérationnel">Opérationnel</option>
@@ -36,7 +35,7 @@
     <!-- Bloc 2 -->
     <div class="form-row">
 
-        <input type="text" name="emplacement" placeholder="Emplacement">
+        <input type="text" name="emplacement" placeholder="Emplacement" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
 
         <select name="client_id">
             <option value="">Client</option>
@@ -45,16 +44,16 @@
             {% endfor %}
         </select>
 
-        <input type="text" name="fabricant" placeholder="Fabricant">
+        <input type="text" name="fabricant" placeholder="Fabricant" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
 
     </div>
 
     <!-- Bloc 3 -->
     <div class="form-row">
 
-        <input type="text" name="modele" placeholder="Modèle">
+        <input type="text" name="modele" placeholder="Modèle" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
 
-        <input type="text" name="numero_serie" placeholder="Numéro de série">
+        <input type="text" name="numero_serie" placeholder="Numéro de série" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
 
         <input type="date" name="date_installation">
 

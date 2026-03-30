@@ -7,19 +7,18 @@
 <div class="card" style="max-width:600px;">
 
     <form method="POST" class="form">
-        <form method="POST" autocomplete="off">
 
         <label>Nom</label>
-        <input type="text" name="nom" value="{{ technicien['nom'] }}" required>
+        <input type="text" name="nom" value="{{ technicien['nom'] }}" required autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
 
         <label>Prénom</label>
-        <input type="text" name="prenom" value="{{ technicien['prenom'] }}" required>
+        <input type="text" name="prenom" value="{{ technicien['prenom'] }}" required autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
 
         <label>Code</label>
-        <input type="text" name="code" value="{{ technicien['code'] }}" required>
+        <input type="text" name="code" value="{{ technicien['code'] }}" required autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
 
         <label>Spécialité</label>
-        <input type="text" name="specialite" value="{{ technicien['specialite'] }}">
+        <input type="text" name="specialite" value="{{ technicien['specialite'] }}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
 
         <label>Statut</label>
         <select name="statut">

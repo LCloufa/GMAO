@@ -5,11 +5,10 @@
 
 <div class="card" style="max-width:900px;">
   <form method="POST" enctype="multipart/form-data" class="form">
-    <form method="POST" autocomplete="off">
 
     <div class="form-row">
       <div class="floating-group">
-        <input class="floating-input" name="declared_by_name" placeholder=" " value="{{ session['username'] }}">
+        <input class="floating-input" name="declared_by_name" placeholder=" " value="{{ session['username'] }}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
         <label class="floating-label">Votre nom (optionnel)</label>
       </div>
 
@@ -22,18 +21,18 @@
     </div>
 
     <div style="margin-bottom:18px;">
-      <input type="text" name="title" placeholder="Titre de la panne * (ex: arrêt machine, bruit anormal...)" required style="width:100%;">
+      <input type="text" name="title" placeholder="Titre de la panne * (ex: arrêt machine, bruit anormal...)" required style="width:100%;" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
     </div>
 
     <div style="margin-bottom:18px;">
       <textarea name="description" required rows="4"
         placeholder="Bref descriptif : symptômes, depuis quand, impact..."
-        style="width:100%; padding:10px; border-radius:10px; border:1px solid #e2e8f0;"></textarea>
+        style="width:100%; padding:10px; border-radius:10px; border:1px solid #e2e8f0;" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
     </div>
 
     <div class="form-row">
       <div class="floating-group">
-        <input class="floating-input" name="location" placeholder=" ">
+        <input class="floating-input" name="location" placeholder=" " autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
         <label class="floating-label">Localisation (atelier, zone, ligne...)</label>
       </div>
     </div>
