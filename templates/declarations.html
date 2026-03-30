@@ -106,6 +106,17 @@
                href="/declarations/{{ d[0] }}/create_intervention">Créer intervention</a>
           {% else %}
             <span class="badge status-resolved">Déclaration verrouillée</span>
+            {% if session['role'] == 'admin' %}
+              <details style="position:relative; display:inline-block;">
+                <summary style="list-style:none; cursor:pointer; font-size:22px; line-height:1; color:#64748b; margin-top:2px;">...</summary>
+                <div style="position:absolute; right:0; top:28px; background:#fff; border:1px solid #e2e8f0; border-radius:10px; box-shadow:0 8px 20px rgba(0,0,0,.08); min-width:180px; padding:8px;">
+                  <a href="/declarations/{{ d[0] }}/force_status/pending" style="display:block; padding:7px 8px; color:#334155; text-decoration:none; border-radius:7px;">Forcer: En attente</a>
+                  <a href="/declarations/{{ d[0] }}/force_status/in_progress" style="display:block; padding:7px 8px; color:#334155; text-decoration:none; border-radius:7px;">Forcer: En cours</a>
+                  <a href="/declarations/{{ d[0] }}/force_status/resolved" style="display:block; padding:7px 8px; color:#334155; text-decoration:none; border-radius:7px;">Forcer: Résolue</a>
+                  <a href="/declarations/{{ d[0] }}/force_status/rejected" style="display:block; padding:7px 8px; color:#334155; text-decoration:none; border-radius:7px;">Forcer: Rejetée</a>
+                </div>
+              </details>
+            {% endif %}
             {% if d[11] %}
               <span class="badge status-in_progress">Intervention liée</span>
             {% endif %}

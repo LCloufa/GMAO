@@ -1871,6 +1871,36 @@ def declaration_create_intervention(id):
         prefilled_title=prefilled_title,
         prefilled_desc=prefilled_desc
     )
+
+
+@app.route("/declarations/<int:id>/force_status/<status>")
+@login_required
+@role_required("admin")
+def declaration_force_status(id, status):
+
+    if status not in ("pending", "in_progress", "resolved", "rejected"):
+        return "Statut invalide", 400
+
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT equipment_id FROM declarations_panne WHERE id=?", (id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return "Déclaration introuvable", 404
+
+    cursor.execute("""
+        UPDATE declarations_panne
+        SET status=?, updated_at=datetime('now')
+        WHERE id=?
+    """, (status, id))
+
+    sync_equipement_statut(conn, row[0])
+
+    conn.commit()
+    conn.close()
+    return redirect("/declarations")
     
 @app.route("/export/interventions")
 @login_required
@@ -2237,6 +2267,5 @@ if __name__ == "__main__":
     ensure_upload_dirs()
     init_db()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
-
 
 
