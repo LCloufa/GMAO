@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1 style="margin-bottom:30px;">Nouveau client</h1>
+
+<form action="/clients/nouveau" method="POST" class="form" autocomplete="off">
+    <div style="margin-bottom:20px;">
+        <input type="text" name="nom" placeholder="Nom du client" required style="width:100%;">
+    </div>
+
+    <div class="form-row">
+        <input type="email" name="email" placeholder="Email">
+        <input type="text" name="telephone" placeholder="Téléphone">
+        <input type="text" name="site_web" placeholder="Site web">
+    </div>
+
+    <div class="form-row">
+        <select name="rythme_horaire">
+            {% for rythme in rythme_options %}
+                <option value="{{ rythme }}">{{ rythme }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="actions-row" style="margin-top:25px; justify-content:flex-end;">
+        <a href="/clients" style="text-decoration:none; color:#64748b; margin-right:20px;">Annuler</a>
+        <button type="submit" class="btn-primary">Créer le client</button>
+    </div>
+</form>
+
+{% endblock %}
