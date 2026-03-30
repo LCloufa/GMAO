@@ -1754,8 +1754,20 @@ def declaration_set_status(id, status):
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
 
-    cursor.execute("SELECT equipment_id FROM declarations_panne WHERE id=?", (id,))
+    cursor.execute(
+        "SELECT equipment_id, status, intervention_id FROM declarations_panne WHERE id=?",
+        (id,),
+    )
     row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return "Déclaration introuvable", 404
+
+    equipment_id, current_status, intervention_id = row
+    declaration_locked = current_status in ("in_progress", "resolved", "rejected") or intervention_id is not None
+    if declaration_locked:
+        conn.close()
+        return "Cette déclaration est verrouillée, changement de statut impossible.", 400
 
     cursor.execute("""
         UPDATE declarations_panne
@@ -1763,8 +1775,7 @@ def declaration_set_status(id, status):
         WHERE id=?
     """, (status, id))
 
-    if row:
-        sync_equipement_statut(conn, row[0])
+    sync_equipement_statut(conn, equipment_id)
 
     conn.commit()
     conn.close()
@@ -1782,7 +1793,7 @@ def declaration_create_intervention(id):
     # Récup déclaration
     cursor.execute("""
         SELECT d.id, d.title, d.description, d.urgency, d.location, d.equipment_id,
-               e.nom, e.code
+               e.nom, e.code, d.status, d.intervention_id
         FROM declarations_panne d
         LEFT JOIN equipements e ON d.equipment_id = e.id
         WHERE d.id=?
@@ -1791,6 +1802,10 @@ def declaration_create_intervention(id):
     if not dec:
         conn.close()
         return "Déclaration introuvable", 404
+
+    if dec[8] in ("in_progress", "resolved", "rejected") or dec[9] is not None:
+        conn.close()
+        return "Cette déclaration est verrouillée, création d'intervention impossible.", 400
 
     cursor.execute("SELECT id, nom FROM techniciens WHERE statut='Actif'")
     techniciens = cursor.fetchall()
@@ -2222,8 +2237,6 @@ if __name__ == "__main__":
     ensure_upload_dirs()
     init_db()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
-
-
 
 
 

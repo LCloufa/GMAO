@@ -90,21 +90,25 @@
       </div>
 
       {% if session['role'] in ['technician','admin'] %}
+        {% set declaration_locked = d[5] in ['in_progress', 'resolved', 'rejected'] or d[11] %}
         <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
-          <a class="btn-secondary" style="text-decoration:none;"
-             href="/declarations/{{ d[0] }}/status/in_progress">Passer en cours</a>
+          {% if not declaration_locked %}
+            <a class="btn-secondary" style="text-decoration:none;"
+               href="/declarations/{{ d[0] }}/status/in_progress">Passer en cours</a>
 
-          <a class="btn-secondary" style="text-decoration:none;"
-             href="/declarations/{{ d[0] }}/status/resolved">Résoudre</a>
+            <a class="btn-secondary" style="text-decoration:none;"
+               href="/declarations/{{ d[0] }}/status/resolved">Résoudre</a>
 
-          <a class="btn-secondary" style="text-decoration:none;"
-             href="/declarations/{{ d[0] }}/status/rejected">Rejeter</a>
+            <a class="btn-secondary" style="text-decoration:none;"
+               href="/declarations/{{ d[0] }}/status/rejected">Rejeter</a>
 
-          {% if not d[11] %}
             <a class="btn-primary" style="text-decoration:none;"
                href="/declarations/{{ d[0] }}/create_intervention">Créer intervention</a>
           {% else %}
-            <span class="badge status-in_progress">Intervention liée</span>
+            <span class="badge status-resolved">Déclaration verrouillée</span>
+            {% if d[11] %}
+              <span class="badge status-in_progress">Intervention liée</span>
+            {% endif %}
           {% endif %}
         </div>
       {% endif %}
