@@ -602,11 +602,7 @@ def dashboard():
     # ETAT EQUIPEMENTS (ta logique actuelle)
     # ==========================
 
-    from datetime import date, timedelta
-
-    today = date.today()
-    today_str = today.isoformat()
-    soon_str = (today + timedelta(days=3)).isoformat()
+    from datetime import timedelta
 
     query = """
     SELECT 
@@ -617,34 +613,28 @@ def dashboard():
         WHEN EXISTS (
             SELECT 1 FROM interventions i
             WHERE i.equipment_id = e.id
-            AND i.type = 'corrective'
-            AND i.priority = 'critical'
-            AND i.status IN ('planned', 'in_progress')
-            AND i.scheduled_date = ?
-        )
-        THEN 'Problème'
-        WHEN EXISTS (
-            SELECT 1 FROM interventions i
-            WHERE i.equipment_id = e.id
-            AND i.status IN ('planned', 'in_progress')
-            AND i.scheduled_date = ?
+            AND i.status = 'in_progress'
         )
         THEN 'Maintenance en cours'
         WHEN EXISTS (
             SELECT 1 FROM interventions i
             WHERE i.equipment_id = e.id
             AND i.status = 'planned'
-            AND i.scheduled_date > ?
-            AND i.scheduled_date <= ?
         )
         THEN 'Planifiée'
+        WHEN EXISTS (
+            SELECT 1 FROM declarations_panne d
+            WHERE d.equipment_id = e.id
+            AND d.status IN ('pending', 'in_progress')
+        )
+        THEN 'Problème'
         ELSE 'Opérationnel'
         END as etat
     FROM equipements e
     LEFT JOIN clients c ON e.client_id = c.id
     """
 
-    params = [today_str, today_str, today_str, soon_str]
+    params = []
 
     if selected_client:
         query += " WHERE e.client_id = ?"
