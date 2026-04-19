@@ -248,7 +248,25 @@ def sync_equipement_statut(conn, equipement_id):
     )
     has_active_intervention = bool(cursor.fetchone()[0])
 
-    next_statut = "En panne" if (has_active_declaration or has_active_intervention) else "Opérationnel"
+    if has_active_intervention:
+        cursor.execute(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                FROM interventions
+                WHERE equipment_id = ?
+                  AND status = 'in_progress'
+            )
+            """,
+            (equipement_id,),
+        )
+        has_in_progress_intervention = bool(cursor.fetchone()[0])
+        next_statut = "Maintenance en cours" if has_in_progress_intervention else "Planifiée"
+    elif has_active_declaration:
+        next_statut = "Problème"
+    else:
+        next_statut = "Opérationnel"
+
     cursor.execute(
         "UPDATE equipements SET statut = ? WHERE id = ?",
         (next_statut, equipement_id),
@@ -604,14 +622,14 @@ def dashboard():
             AND i.status IN ('planned', 'in_progress')
             AND i.scheduled_date = ?
         )
-        THEN 'En panne'
+        THEN 'Problème'
         WHEN EXISTS (
             SELECT 1 FROM interventions i
             WHERE i.equipment_id = e.id
             AND i.status IN ('planned', 'in_progress')
             AND i.scheduled_date = ?
         )
-        THEN 'Maintenance'
+        THEN 'Maintenance en cours'
         WHEN EXISTS (
             SELECT 1 FROM interventions i
             WHERE i.equipment_id = e.id
@@ -637,7 +655,7 @@ def dashboard():
 
     maintenance_today = sum(
         1 for e in equipements_etat
-        if e[3] in ("Maintenance", "En panne")
+        if e[3] in ("Maintenance en cours", "Problème")
     )
 
     # ==========================
@@ -1525,7 +1543,7 @@ def add_rapport():
         )
 
     if etat_rapport == "Toujours en panne":
-        cursor.execute("UPDATE equipements SET statut='En panne' WHERE id=?", (equipement_id,))
+        cursor.execute("UPDATE equipements SET statut='Problème' WHERE id=?", (equipement_id,))
     else:
         sync_equipement_statut(conn, equipement_id)
 
@@ -2267,5 +2285,3 @@ if __name__ == "__main__":
     ensure_upload_dirs()
     init_db()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
-
-
