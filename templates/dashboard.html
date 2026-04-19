@@ -115,7 +115,7 @@
 </table>
 </div>
 
-{% set pannes = equipements_etat | selectattr(3, "equalto", "En panne") | list %}
+{% set pannes = equipements_etat | selectattr(3, "equalto", "Problème") | list %}
 
 {% if pannes|length > 0 %}
 <div class="dashboard-alert">
@@ -127,7 +127,7 @@
     {% for eq in pannes %}
         <div class="dashboard-alert-item">
             <strong>{{ eq[1] }}</strong>
-            <span class="badge priority-critical">En panne</span>
+            <span class="badge priority-critical">Problème</span>
         </div>
     {% endfor %}
 
@@ -148,11 +148,11 @@
             </div>
         </div>
 
-        {% if eq[3] == "En panne" %}
-    	<span class="badge priority-critical">En panne</span>
+        {% if eq[3] == "Problème" %}
+    	<span class="badge priority-critical">Problème</span>
 
-	{% elif eq[3] == "Maintenance" %}
-    	<span class="badge priority-medium">Maintenance</span>
+	{% elif eq[3] == "Maintenance en cours" %}
+    	<span class="badge priority-medium">Maintenance en cours</span>
 
 	{% elif eq[3] == "Planifiée" %}
     	<span class="badge priority-high">Planifiée</span>
@@ -558,4 +558,3 @@ window.setMonth = setMonth;
 
 
 {% endblock %}
-
