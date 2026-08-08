@@ -252,6 +252,45 @@ document.addEventListener('DOMContentLoaded', function() {
 
         events: events,
 
+        eventContent: function(arg) {
+            const props = arg.event.extendedProps;
+            const machine = props.equipement || "Machine non renseignée";
+            const description = props.description || "Aucune description";
+
+            const wrapper = document.createElement("div");
+            wrapper.className = "gmao-calendar-event";
+
+            const time = document.createElement("div");
+            time.className = "gmao-calendar-time";
+            time.textContent = arg.timeText || "";
+
+            const title = document.createElement("div");
+            title.className = "gmao-calendar-title";
+            title.textContent = arg.event.title || "Intervention";
+
+            const equipment = document.createElement("div");
+            equipment.className = "gmao-calendar-equipment";
+            equipment.textContent = "⚙ " + machine;
+
+            const desc = document.createElement("div");
+            desc.className = "gmao-calendar-description";
+            desc.textContent = description;
+
+            wrapper.appendChild(time);
+            wrapper.appendChild(title);
+            wrapper.appendChild(equipment);
+            wrapper.appendChild(desc);
+
+            return { domNodes: [wrapper] };
+        },
+
+        eventDidMount: function(info) {
+            const props = info.event.extendedProps;
+            const machine = props.equipement || "Machine non renseignée";
+            const description = props.description || "Aucune description";
+            info.el.title = `${info.event.title}\nMachine : ${machine}\nDescription : ${description}`;
+        },
+
         eventClick: function(info) {
             console.log("CLICK EVENT", info.event.id); // test
             openIntervention(info.event.extendedProps.orig_id);
@@ -534,6 +573,58 @@ window.setMonth = setMonth;
 
 .fc-timegrid-event {
     margin: 2px !important; /* espace entre événements */
+}
+
+.fc-timegrid-event .fc-event-main,
+.fc-daygrid-event .fc-event-main {
+    padding: 4px 6px;
+    overflow: hidden;
+}
+
+.gmao-calendar-event {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    line-height: 1.15;
+    overflow: hidden;
+}
+
+.gmao-calendar-time {
+    font-size: 11px;
+    font-weight: 500;
+    opacity: 0.95;
+}
+
+.gmao-calendar-title {
+    font-size: 12px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.gmao-calendar-equipment {
+    font-size: 11px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.gmao-calendar-description {
+    font-size: 10px;
+    font-weight: 400;
+    opacity: 0.95;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+}
+
+.fc-daygrid-event .gmao-calendar-description {
+    -webkit-line-clamp: 1;
 }
 
 .fc-timegrid-slot {
