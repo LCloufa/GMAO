@@ -149,7 +149,7 @@
 </div>
 
 <script>
-const canWriteReport = {{ "true" if session.get("role") in ["admin", "technician"] else "false" }};
+const canWriteReport = {{ "true" if session.get("role") in ["admin", "technician", "operator"] else "false" }};
 
 function openIntervention(id) {
     console.log("CLICK OK :", id);
