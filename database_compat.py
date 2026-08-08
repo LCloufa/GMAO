@@ -22,6 +22,40 @@ from psycopg.rows import dict_row, tuple_row
 load_dotenv()
 
 
+# Defaults applicatifs définis dans models.py mais qui ne sont pas forcément
+# des DEFAULT serveur PostgreSQL. Les anciens INSERT SQL bruts ne passent pas
+# par l'ORM SQLAlchemy : on complète donc uniquement les colonnes absentes.
+#
+# Cette compatibilité est non destructive : aucune table n'est créée/altérée
+# ici. Une future modification du schéma doit toujours passer par Alembic.
+_RAW_INSERT_DEFAULTS: dict[str, tuple[tuple[str, str], ...]] = {
+    "users": (("role", "'user'"),),
+    "clients": (("rythme_horaire", "'1x8'"),),
+    "techniciens": (("statut", "'Actif'"),),
+    "equipements": (("statut", "'Opérationnel'"),),
+    "interventions": (
+        ("priority", "'medium'"),
+        ("status", "'planned'"),
+    ),
+    "declarations_panne": (
+        ("urgency", "'medium'"),
+        ("status", "'pending'"),
+        ("created_at", "CURRENT_TIMESTAMP"),
+    ),
+    "rapports_intervention": (("created_at", "CURRENT_TIMESTAMP"),),
+}
+
+
+_INSERT_VALUES_RE = re.compile(
+    r"^(?P<prefix>\s*INSERT\s+INTO\s+(?P<table>\"?[A-Za-z_][A-Za-z0-9_]*\"?)\s*)"
+    r"\((?P<columns>[^)]*)\)"
+    r"(?P<middle>\s*VALUES\s*)"
+    r"\((?P<values>[^)]*)\)"
+    r"(?P<suffix>\s*;?\s*)$",
+    flags=re.IGNORECASE | re.DOTALL,
+)
+
+
 def _normalize_database_url(url: str) -> str:
     """Convertit une URL SQLAlchemy en DSN accepté directement par psycopg."""
     url = (url or "").strip()
@@ -70,9 +104,58 @@ def _replace_qmark_placeholders(sql: str) -> str:
     return "".join(out)
 
 
+def _apply_raw_insert_compatibility(sql: str) -> str:
+    """Complète les INSERT DB-API historiques pour les modèles PostgreSQL.
+
+    SQLAlchemy applique `default=` quand on passe par l'ORM, mais ces defaults
+    Python ne sont pas garantis lors d'un `cursor.execute("INSERT ...")` brut.
+    Cette fonction ajoute donc les defaults applicatifs manquants aux INSERT
+    simples `INSERT INTO table (colonnes) VALUES (valeurs)` utilisés par app.py.
+
+    Elle corrige également l'ancien nom de colonne `localisation` de la route
+    rapide des équipements vers le nom actuel `emplacement`.
+    """
+    match = _INSERT_VALUES_RE.match(sql)
+    if not match:
+        return sql
+
+    raw_table = match.group("table")
+    table = raw_table.strip('"').lower()
+
+    columns = [part.strip() for part in match.group("columns").split(",") if part.strip()]
+    values = [part.strip() for part in match.group("values").split(",") if part.strip()]
+
+    # Ne réécrit pas une requête atypique : on préfère laisser PostgreSQL
+    # remonter une erreur explicite plutôt que de modifier une requête ambiguë.
+    if len(columns) != len(values):
+        return sql
+
+    if table == "equipements":
+        columns = [
+            "emplacement" if column.strip('"').lower() == "localisation" else column
+            for column in columns
+        ]
+
+    present_columns = {column.strip('"').lower() for column in columns}
+    for column, sql_default in _RAW_INSERT_DEFAULTS.get(table, ()): 
+        if column.lower() not in present_columns:
+            columns.append(column)
+            values.append(sql_default)
+            present_columns.add(column.lower())
+
+    return (
+        f"{match.group('prefix')}"
+        f"({', '.join(columns)})"
+        f"{match.group('middle')}"
+        f"({', '.join(values)})"
+        f"{match.group('suffix')}"
+    )
+
+
 def _translate_sql(sql: str) -> str:
-    """Traduit les quelques constructions SQLite encore utilisées par app.py."""
-    translated = _replace_qmark_placeholders(sql)
+    """Traduit les constructions SQLite encore utilisées par app.py."""
+    translated = _apply_raw_insert_compatibility(sql)
+    translated = _replace_qmark_placeholders(translated)
 
     # SQLite : datetime('now') / date('now')
     translated = re.sub(
