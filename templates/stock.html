@@ -1,0 +1,326 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="stock-page">
+    <div class="stock-header">
+        <div>
+            <h1>📦 Stock maintenance</h1>
+            <p>Pièces détachées, consommables, mouvements, réservations et inventaires.</p>
+        </div>
+        {% if session.get('role') == 'admin' %}
+        <div class="stock-header-actions">
+            <button class="stock-btn-secondary" type="button" onclick="openStockDrawer('category')">+ Catégorie</button>
+            <button class="stock-btn-secondary" type="button" onclick="openStockDrawer('location')">+ Emplacement</button>
+            <button class="btn-primary" type="button" onclick="openStockDrawer('article')">+ Nouvel article</button>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if request.args.get('error') == 'insufficient' %}
+        <div class="stock-error-box">Stock insuffisant pour effectuer cette opération.</div>
+    {% elif request.args.get('error') == 'reference_exists' %}
+        <div class="stock-error-box">Cette référence article existe déjà.</div>
+    {% elif request.args.get('error') == 'category_exists' %}
+        <div class="stock-error-box">Cette catégorie existe déjà.</div>
+    {% endif %}
+
+    <div class="stock-kpis">
+        <div class="stock-kpi">
+            <div class="stock-kpi-label">Références actives</div>
+            <div class="stock-kpi-value">{{ stock_kpis.references }}</div>
+        </div>
+        <div class="stock-kpi stock-kpi-success">
+            <div class="stock-kpi-label">Valeur du stock</div>
+            <div class="stock-kpi-value">{{ "%.2f"|format(stock_kpis.valeur) }} €</div>
+        </div>
+        <div class="stock-kpi stock-kpi-warning">
+            <div class="stock-kpi-label">Sous seuil minimum</div>
+            <div class="stock-kpi-value">{{ stock_kpis.alertes }}</div>
+        </div>
+        <div class="stock-kpi stock-kpi-danger">
+            <div class="stock-kpi-label">Ruptures</div>
+            <div class="stock-kpi-value">{{ stock_kpis.ruptures }}</div>
+        </div>
+    </div>
+
+    <div class="stock-tabs">
+        <a class="stock-tab {% if section == 'articles' %}active{% endif %}" href="/stock?section=articles">Articles</a>
+        <a class="stock-tab {% if section == 'mouvements' %}active{% endif %}" href="/stock?section=mouvements">Mouvements</a>
+        <a class="stock-tab {% if section == 'inventaire' %}active{% endif %}" href="/stock?section=inventaire">Inventaire</a>
+        <a class="stock-tab {% if section == 'fournisseurs' %}active{% endif %}" href="/stock?section=fournisseurs">Fournisseurs</a>
+        <a class="stock-tab {% if section == 'alertes' %}active{% endif %}" href="/stock?section=alertes">Alertes{% if stock_kpis.alertes %} · {{ stock_kpis.alertes }}{% endif %}</a>
+    </div>
+
+    {% if section == 'articles' %}
+    <section class="stock-panel">
+        <div class="stock-panel-head">
+            <h2>Articles en stock</h2>
+            <form class="stock-search" method="GET" action="/stock">
+                <input type="hidden" name="section" value="articles">
+                <input type="search" name="q" value="{{ recherche }}" placeholder="Référence, désignation, fabricant, catégorie...">
+                <button type="submit">Rechercher</button>
+                {% if recherche %}<a class="stock-btn-secondary" href="/stock?section=articles">Effacer</a>{% endif %}
+            </form>
+        </div>
+        <div class="stock-table-wrap">
+            <table class="stock-table">
+                <thead>
+                    <tr>
+                        <th>Référence</th>
+                        <th>Désignation</th>
+                        <th>Catégorie</th>
+                        <th>Emplacement</th>
+                        <th>Physique</th>
+                        <th>Réservé</th>
+                        <th>Disponible</th>
+                        <th>Mini</th>
+                        <th>Valeur</th>
+                        <th>État</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for a in articles %}
+                    <tr>
+                        <td><a class="stock-ref" href="/stock/articles/{{ a.id }}">{{ a.reference }}</a></td>
+                        <td>
+                            <strong>{{ a.designation }}</strong>
+                            {% if a.fabricant %}<div class="stock-muted">{{ a.fabricant }}</div>{% endif %}
+                        </td>
+                        <td>{{ a.categorie }}</td>
+                        <td>{{ a.emplacement }}</td>
+                        <td>{{ a.stock_physique }} {{ a.unite }}</td>
+                        <td>{{ a.reserve }} {{ a.unite }}</td>
+                        <td><strong>{{ a.disponible }} {{ a.unite }}</strong></td>
+                        <td>{{ a.stock_min }}</td>
+                        <td>{{ "%.2f"|format(a.valeur) }} €</td>
+                        <td>
+                            {% if not a.actif %}
+                                <span class="stock-badge stock-badge-neutral">Inactif</span>
+                            {% elif a.etat == 'rupture' %}
+                                <span class="stock-badge stock-badge-danger">Rupture</span>
+                            {% elif a.etat == 'alerte' %}
+                                <span class="stock-badge stock-badge-warning">À commander</span>
+                            {% else %}
+                                <span class="stock-badge stock-badge-ok">OK</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="10" class="stock-empty">Aucun article trouvé.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    {% elif section == 'mouvements' %}
+    <section class="stock-panel">
+        <div class="stock-panel-head">
+            <div>
+                <h2>Mouvements de stock</h2>
+                <div class="stock-muted">Chaque entrée, sortie, correction, consommation ou retour reste historisé.</div>
+            </div>
+            <button class="btn-primary" type="button" onclick="openStockDrawer('movement')">+ Nouveau mouvement</button>
+        </div>
+        <div class="stock-table-wrap">
+            <table class="stock-table">
+                <thead><tr><th>Date</th><th>Article</th><th>Type</th><th>Quantité</th><th>Prix</th><th>Motif</th><th>Utilisateur</th><th>Intervention</th></tr></thead>
+                <tbody>
+                {% for m in mouvements %}
+                    <tr>
+                        <td>{{ m[1] }}</td>
+                        <td><strong>{{ m[2] }}</strong><div class="stock-muted">{{ m[3] }}</div></td>
+                        <td><span class="stock-badge stock-badge-neutral">{{ m[4] }}</span></td>
+                        <td class="{% if m[5] >= 0 %}stock-qty-positive{% else %}stock-qty-negative{% endif %}">{{ '+' if m[5] >= 0 else '' }}{{ m[5] }}</td>
+                        <td>{{ m[6] or '-' }}</td>
+                        <td>{{ m[7] or '-' }}</td>
+                        <td>{{ m[8] }}</td>
+                        <td>{% if m[9] %}<a class="stock-ref" href="/stock/intervention/{{ m[9] }}">#{{ m[9] }}</a> · {{ m[10] }}{% else %}-{% endif %}</td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="8" class="stock-empty">Aucun mouvement enregistré.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    {% elif section == 'inventaire' %}
+    <section class="stock-panel">
+        <div class="stock-panel-head">
+            <div>
+                <h2>Inventaire</h2>
+                <div class="stock-muted">Le comptage génère automatiquement un mouvement de correction traçable.</div>
+            </div>
+        </div>
+        {% if session.get('role') != 'admin' %}
+            <div class="stock-alert-box">Consultation uniquement : la validation d'un inventaire est réservée à l'administrateur.</div>
+        {% endif %}
+        <div class="stock-table-wrap">
+            <table class="stock-table">
+                <thead><tr><th>Référence</th><th>Désignation</th><th>Emplacement</th><th>Stock théorique</th><th>Stock compté</th></tr></thead>
+                <tbody>
+                {% for a in articles_all if a.actif %}
+                    <tr>
+                        <td><a class="stock-ref" href="/stock/articles/{{ a.id }}">{{ a.reference }}</a></td>
+                        <td>{{ a.designation }}</td>
+                        <td>{{ a.emplacement }}</td>
+                        <td><strong>{{ a.stock_physique }} {{ a.unite }}</strong></td>
+                        <td>
+                            {% if session.get('role') == 'admin' %}
+                            <form class="stock-inline-form" action="/stock/inventaire" method="POST" onsubmit="return confirm('Valider ce comptage d’inventaire ?');">
+                                <input type="hidden" name="article_id" value="{{ a.id }}">
+                                <input type="number" name="quantite_comptee" min="0" step="0.001" value="{{ a.stock_physique }}" required>
+                                <button type="submit">Valider</button>
+                            </form>
+                            {% else %}-{% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    {% elif section == 'fournisseurs' %}
+    <section class="stock-panel">
+        <div class="stock-panel-head">
+            <h2>Fournisseurs</h2>
+            {% if session.get('role') == 'admin' %}<button class="btn-primary" type="button" onclick="openStockDrawer('supplier')">+ Fournisseur</button>{% endif %}
+        </div>
+        <div class="stock-table-wrap">
+            <table class="stock-table">
+                <thead><tr><th>Nom</th><th>Contact</th><th>Email</th><th>Téléphone</th><th>Site web</th><th>État</th></tr></thead>
+                <tbody>
+                {% for f in fournisseurs %}
+                    <tr>
+                        <td><strong>{{ f[1] }}</strong></td>
+                        <td>{{ f[2] or '-' }}</td>
+                        <td>{{ f[3] or '-' }}</td>
+                        <td>{{ f[4] or '-' }}</td>
+                        <td>{% if f[5] %}<a class="stock-ref" target="_blank" rel="noopener" href="{{ f[5] }}">Ouvrir</a>{% else %}-{% endif %}</td>
+                        <td>{% if f[6] %}<span class="stock-badge stock-badge-ok">Actif</span>{% else %}<span class="stock-badge stock-badge-neutral">Inactif</span>{% endif %}</td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="6" class="stock-empty">Aucun fournisseur.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    {% elif section == 'alertes' %}
+    <section class="stock-panel">
+        <div class="stock-panel-head">
+            <div>
+                <h2>Alertes de réapprovisionnement</h2>
+                <div class="stock-muted">Basées sur le stock disponible après réservations.</div>
+            </div>
+        </div>
+        <div class="stock-table-wrap">
+            <table class="stock-table">
+                <thead><tr><th>Référence</th><th>Désignation</th><th>Disponible</th><th>Stock mini</th><th>Stock maxi</th><th>Emplacement</th><th>État</th></tr></thead>
+                <tbody>
+                {% for a in alertes %}
+                    <tr>
+                        <td><a class="stock-ref" href="/stock/articles/{{ a.id }}">{{ a.reference }}</a></td>
+                        <td>{{ a.designation }}</td>
+                        <td><strong>{{ a.disponible }} {{ a.unite }}</strong></td>
+                        <td>{{ a.stock_min }}</td>
+                        <td>{{ a.stock_max if a.stock_max is not none else '-' }}</td>
+                        <td>{{ a.emplacement }}</td>
+                        <td>{% if a.etat == 'rupture' %}<span class="stock-badge stock-badge-danger">Rupture</span>{% else %}<span class="stock-badge stock-badge-warning">Sous seuil</span>{% endif %}</td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="7" class="stock-empty">Aucune alerte de stock.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    {% endif %}
+</div>
+
+{% if session.get('role') == 'admin' %}
+<template id="stockArticleTemplate">
+    <form class="stock-form stock-form-grid" method="POST" action="/stock/articles/add" autocomplete="off">
+        <div class="stock-form-group"><label>Référence *</label><input name="reference" required></div>
+        <div class="stock-form-group"><label>Désignation *</label><input name="designation" required></div>
+        <div class="stock-form-group"><label>Référence fabricant</label><input name="reference_fabricant"></div>
+        <div class="stock-form-group"><label>Fabricant</label><input name="fabricant"></div>
+        <div class="stock-form-group"><label>Catégorie</label><select name="categorie_id"><option value="">-</option>{% for c in categories %}<option value="{{ c[0] }}">{{ c[1] }}</option>{% endfor %}</select></div>
+        <div class="stock-form-group"><label>Emplacement</label><select name="emplacement_id"><option value="">-</option>{% for l in emplacements %}<option value="{{ l[0] }}">{{ l[2] }}</option>{% endfor %}</select></div>
+        <div class="stock-form-group"><label>Unité *</label><select name="unite"><option>pièce</option><option>L</option><option>kg</option><option>m</option><option>m²</option><option>m³</option><option>boîte</option><option>lot</option></select></div>
+        <div class="stock-form-group"><label>Prix unitaire (€)</label><input type="number" step="0.01" min="0" name="prix_unitaire" value="0"></div>
+        <div class="stock-form-group"><label>Stock initial</label><input type="number" step="0.001" min="0" name="stock_initial" value="0"></div>
+        <div class="stock-form-group"><label>Stock minimum</label><input type="number" step="0.001" min="0" name="stock_min" value="0"></div>
+        <div class="stock-form-group"><label>Stock maximum</label><input type="number" step="0.001" min="0" name="stock_max"></div>
+        <div class="stock-form-group full"><label>Notes</label><textarea name="notes"></textarea></div>
+        <div class="stock-form-actions"><button type="button" class="stock-btn-secondary" onclick="closeDrawer()">Annuler</button><button type="submit">Créer l'article</button></div>
+    </form>
+</template>
+
+<template id="stockCategoryTemplate">
+    <form class="stock-form stock-form-grid" method="POST" action="/stock/categories/add">
+        <div class="stock-form-group full"><label>Nom *</label><input name="nom" required></div>
+        <div class="stock-form-group full"><label>Description</label><textarea name="description"></textarea></div>
+        <div class="stock-form-actions"><button type="button" class="stock-btn-secondary" onclick="closeDrawer()">Annuler</button><button type="submit">Créer</button></div>
+    </form>
+</template>
+
+<template id="stockLocationTemplate">
+    <form class="stock-form stock-form-grid" method="POST" action="/stock/locations/add">
+        <div class="stock-form-group"><label>Code</label><input name="code" placeholder="MAG-A-01"></div>
+        <div class="stock-form-group"><label>Nom *</label><input name="nom" required placeholder="Bac 01"></div>
+        <div class="stock-form-group full"><label>Emplacement parent</label><select name="parent_id"><option value="">Aucun</option>{% for l in emplacements %}<option value="{{ l[0] }}">{{ l[2] }}</option>{% endfor %}</select></div>
+        <div class="stock-form-group full"><label>Description</label><textarea name="description"></textarea></div>
+        <div class="stock-form-actions"><button type="button" class="stock-btn-secondary" onclick="closeDrawer()">Annuler</button><button type="submit">Créer</button></div>
+    </form>
+</template>
+
+<template id="stockSupplierTemplate">
+    <form class="stock-form stock-form-grid" method="POST" action="/stock/fournisseurs/add">
+        <div class="stock-form-group"><label>Nom *</label><input name="nom" required></div>
+        <div class="stock-form-group"><label>Contact</label><input name="contact"></div>
+        <div class="stock-form-group"><label>Email</label><input type="email" name="email"></div>
+        <div class="stock-form-group"><label>Téléphone</label><input name="telephone"></div>
+        <div class="stock-form-group full"><label>Site web</label><input name="site_web"></div>
+        <div class="stock-form-group full"><label>Notes</label><textarea name="notes"></textarea></div>
+        <div class="stock-form-actions"><button type="button" class="stock-btn-secondary" onclick="closeDrawer()">Annuler</button><button type="submit">Créer</button></div>
+    </form>
+</template>
+{% endif %}
+
+<template id="stockMovementTemplate">
+    <form class="stock-form stock-form-grid" method="POST" action="/stock/mouvements/add">
+        <div class="stock-form-group full"><label>Article *</label><select name="article_id" required><option value=""></option>{% for a in articles_all if a.actif %}<option value="{{ a.id }}">{{ a.reference }} — {{ a.designation }} ({{ a.stock_physique }} {{ a.unite }})</option>{% endfor %}</select></div>
+        <div class="stock-form-group"><label>Type *</label><select name="type_mouvement" required>{% if session.get('role') == 'admin' %}<option value="entree">Entrée</option><option value="sortie">Sortie</option><option value="correction">Correction</option><option value="retour">Retour</option>{% else %}<option value="sortie">Sortie</option><option value="retour">Retour</option>{% endif %}</select></div>
+        {% if session.get('role') == 'admin' %}<div class="stock-form-group"><label>Sens correction</label><select name="signe"><option value="+">+ Ajouter</option><option value="-">− Retirer</option></select></div>{% endif %}
+        <div class="stock-form-group"><label>Quantité *</label><input type="number" step="0.001" min="0.001" name="quantite" required></div>
+        <div class="stock-form-group"><label>Prix unitaire (€)</label><input type="number" step="0.01" min="0" name="prix_unitaire"></div>
+        <div class="stock-form-group full"><label>Intervention liée</label><select name="intervention_id"><option value="">Aucune</option>{% for i in interventions_stock %}<option value="{{ i[0] }}">#{{ i[0] }} — {{ i[1] }} — {{ i[5] }} — {{ i[6] }}</option>{% endfor %}</select></div>
+        <div class="stock-form-group full"><label>Motif</label><textarea name="motif"></textarea></div>
+        <div class="stock-form-actions"><button type="button" class="stock-btn-secondary" onclick="closeDrawer()">Annuler</button><button type="submit">Enregistrer le mouvement</button></div>
+    </form>
+</template>
+
+<script>
+function openStockDrawer(kind) {
+    const map = {
+        article: ["Nouvel article", "stockArticleTemplate"],
+        category: ["Nouvelle catégorie", "stockCategoryTemplate"],
+        location: ["Nouvel emplacement", "stockLocationTemplate"],
+        supplier: ["Nouveau fournisseur", "stockSupplierTemplate"],
+        movement: ["Nouveau mouvement", "stockMovementTemplate"]
+    };
+    const cfg = map[kind];
+    if (!cfg) return;
+    const template = document.getElementById(cfg[1]);
+    if (!template) return;
+    document.getElementById("drawerTitle").textContent = cfg[0];
+    document.getElementById("drawerBody").innerHTML = template.innerHTML;
+    document.getElementById("drawer").classList.add("open");
+}
+</script>
+
+{% endblock %}

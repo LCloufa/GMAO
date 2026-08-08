@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="stock-page">
+    <section class="stock-panel stock-intervention-hero">
+        <div class="stock-header">
+            <div>
+                <a class="stock-ref" href="/stock">← Retour au stock</a>
+                <h1 style="margin-top:8px;">Pièces de l'intervention #{{ intervention[0] }}</h1>
+                <p>{{ intervention[1] }} · {{ intervention[5] }} · Technicien {{ intervention[6] }} · {{ intervention[3] }} {{ intervention[4] or '' }}</p>
+            </div>
+            <span class="stock-badge stock-badge-neutral">{{ intervention[2] }}</span>
+        </div>
+    </section>
+
+    {% if request.args.get('error') == 'insufficient' %}
+        <div class="stock-error-box">Stock insuffisant pour cette opération.</div>
+    {% endif %}
+
+    <section class="stock-panel">
+        <div class="stock-panel-head">
+            <div>
+                <h2>Réserver ou consommer une pièce</h2>
+                <div class="stock-muted">La réservation bloque la disponibilité sans modifier le stock physique. La consommation crée un mouvement de sortie définitif.</div>
+            </div>
+        </div>
+        <div class="stock-three-actions">
+            <div class="stock-action-card">
+                <h3>📌 Réserver</h3>
+                <form class="stock-form" method="POST" action="/stock/intervention/{{ intervention[0] }}/reserve">
+                    <div class="stock-form-group"><label>Article</label><select name="article_id" required><option value=""></option>{% for a in articles %}<option value="{{ a.id }}">{{ a.reference }} — {{ a.designation }} (dispo {{ a.disponible }} {{ a.unite }})</option>{% endfor %}</select></div>
+                    <div class="stock-form-group" style="margin-top:10px;"><label>Quantité</label><input type="number" name="quantite" min="0.001" step="0.001" required></div>
+                    <button type="submit" style="margin-top:12px;width:100%;">Réserver</button>
+                </form>
+            </div>
+
+            <div class="stock-action-card">
+                <h3>🔧 Consommer</h3>
+                <form class="stock-form" method="POST" action="/stock/intervention/{{ intervention[0] }}/consume">
+                    <div class="stock-form-group"><label>Article</label><select name="article_id" required><option value=""></option>{% for a in articles %}<option value="{{ a.id }}">{{ a.reference }} — {{ a.designation }} (physique {{ a.stock_physique }} {{ a.unite }})</option>{% endfor %}</select></div>
+                    <div class="stock-form-group" style="margin-top:10px;"><label>Quantité</label><input type="number" name="quantite" min="0.001" step="0.001" required></div>
+                    <div class="stock-form-group" style="margin-top:10px;"><label>Motif</label><input name="motif" placeholder="Pièce remplacée, consommable utilisé..."></div>
+                    <button class="stock-btn-success" type="submit" style="margin-top:12px;width:100%;">Valider la consommation</button>
+                </form>
+            </div>
+
+            <div class="stock-action-card">
+                <h3>↩ Retour magasin</h3>
+                <form class="stock-form" method="POST" action="/stock/intervention/{{ intervention[0] }}/return">
+                    <div class="stock-form-group"><label>Article</label><select name="article_id" required><option value=""></option>{% for a in articles %}<option value="{{ a.id }}">{{ a.reference }} — {{ a.designation }}</option>{% endfor %}</select></div>
+                    <div class="stock-form-group" style="margin-top:10px;"><label>Quantité</label><input type="number" name="quantite" min="0.001" step="0.001" required></div>
+                    <div class="stock-form-group" style="margin-top:10px;"><label>Motif</label><input name="motif" placeholder="Pièce non utilisée"></div>
+                    <button class="stock-btn-secondary" type="submit" style="margin-top:12px;width:100%;">Remettre en stock</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <div class="stock-grid-2">
+        <section class="stock-panel">
+            <div class="stock-panel-head"><h2>Réservations</h2></div>
+            <div class="stock-table-wrap">
+                <table class="stock-table" style="min-width:700px;">
+                    <thead><tr><th>Article</th><th>Réservé</th><th>Consommé</th><th>Statut</th><th>Action</th></tr></thead>
+                    <tbody>
+                    {% for r in reservations %}
+                        <tr>
+                            <td><strong>{{ r[1] }}</strong><div class="stock-muted">{{ r[2] }}</div></td>
+                            <td>{{ r[3] }}</td><td>{{ r[4] }}</td>
+                            <td><span class="stock-badge {% if r[5] == 'reserved' %}stock-badge-warning{% elif r[5] == 'consumed' %}stock-badge-ok{% else %}stock-badge-neutral{% endif %}">{{ r[5] }}</span></td>
+                            <td>{% if r[5] == 'reserved' %}<form method="POST" action="/stock/reservations/{{ r[0] }}/cancel" onsubmit="return confirm('Annuler cette réservation ?');"><button class="stock-btn-danger" type="submit">Annuler</button></form>{% else %}-{% endif %}</td>
+                        </tr>
+                    {% else %}<tr><td colspan="5" class="stock-empty">Aucune réservation.</td></tr>{% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="stock-panel">
+            <div class="stock-panel-head"><h2>Pièces consommées / retournées</h2></div>
+            <div class="stock-table-wrap">
+                <table class="stock-table" style="min-width:650px;">
+                    <thead><tr><th>Date</th><th>Article</th><th>Quantité</th><th>Prix unitaire</th><th>Utilisateur</th></tr></thead>
+                    <tbody>
+                    {% for c in consommations %}
+                        <tr>
+                            <td>{{ c[0] }}</td>
+                            <td><strong>{{ c[1] }}</strong><div class="stock-muted">{{ c[2] }}</div></td>
+                            <td class="{% if c[3] >= 0 %}stock-qty-negative{% else %}stock-qty-positive{% endif %}">{{ c[3] }}</td>
+                            <td>{{ c[4] or '-' }} €</td><td>{{ c[5] }}</td>
+                        </tr>
+                    {% else %}<tr><td colspan="5" class="stock-empty">Aucune consommation enregistrée.</td></tr>{% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+</div>
+
+{% endblock %}

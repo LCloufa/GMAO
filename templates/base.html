@@ -8,6 +8,7 @@
 
     <link rel="stylesheet" href="/static/style.css">
     <link rel="stylesheet" href="/static/tabs-nav.css">
+    <link rel="stylesheet" href="/static/stock.css">
     <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
 
@@ -133,6 +134,7 @@
                 <a href="/equipements" class="{% if request.path.startswith('/equipements') or request.path.startswith('/nouvel_equipement') or request.path.startswith('/modifier_equipement') %}active{% endif %}">⚙ Équipements</a>
                 <a href="/techniciens" class="{% if request.path.startswith('/techniciens') or request.path.startswith('/modifier_technicien') %}active{% endif %}">🧰 Techniciens</a>
                 <a href="/interventions" class="{% if request.path.startswith('/interventions') %}active{% endif %}">🗓 Interventions</a>
+                <a href="/stock" class="{% if request.path.startswith('/stock') %}active{% endif %}">📦 Stock</a>
                 <a href="/rapports" class="{% if request.path.startswith('/rapports') %}active{% endif %}">📝 Rapports</a>
                 <a href="/clients" class="{% if request.path.startswith('/clients') or request.path.startswith('/nouvel_client') or request.path.startswith('/modifier_client') %}active{% endif %}">👥 Clients</a>
             {% endif %}
@@ -188,10 +190,13 @@ function openIntervention(id) {
                 <p><strong>Description :</strong> ${data.description || "-"}</p>
 
                 ${canWriteReport ? `
-                <button class="btn-success"
-                    onclick="openReportForm(${data.id}, '${data.scheduled_time || ''}')">
-                    Rédiger le rapport
-                </button>` : ''}
+                <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;">
+                    <a class="stock-btn-light" href="/stock/intervention/${data.id}">📦 Gérer les pièces</a>
+                    <button class="btn-success"
+                        onclick="openReportForm(${data.id}, '${data.scheduled_time || ''}')">
+                        Rédiger le rapport
+                    </button>
+                </div>` : ''}
             `;
 
             document.getElementById("drawer").classList.add("open");

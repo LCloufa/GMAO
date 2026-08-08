@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="stock-page">
+    <div class="stock-header">
+        <div>
+            <a class="stock-ref" href="/stock?section=articles">← Retour au stock</a>
+            <h1 style="margin-top:8px;">{{ article.reference }} — {{ article.designation }}</h1>
+            <p>{{ article.fabricant or 'Fabricant non renseigné' }}{% if article.reference_fabricant %} · Réf. fabricant {{ article.reference_fabricant }}{% endif %}</p>
+        </div>
+        {% if session.get('role') == 'admin' %}
+        <form method="POST" action="/stock/articles/{{ article.id }}/toggle" onsubmit="return confirm('Confirmer le changement d’état de cette référence ?');">
+            <button class="{% if article.actif %}stock-btn-danger{% else %}stock-btn-success{% endif %}" type="submit">{% if article.actif %}Désactiver{% else %}Réactiver{% endif %}</button>
+        </form>
+        {% endif %}
+    </div>
+
+    <div class="stock-kpis">
+        <div class="stock-kpi"><div class="stock-kpi-label">Stock physique</div><div class="stock-kpi-value">{{ article.stock_physique }} <span class="stock-muted">{{ article.unite }}</span></div></div>
+        <div class="stock-kpi"><div class="stock-kpi-label">Réservé</div><div class="stock-kpi-value">{{ article.reserve }} <span class="stock-muted">{{ article.unite }}</span></div></div>
+        <div class="stock-kpi stock-kpi-success"><div class="stock-kpi-label">Disponible</div><div class="stock-kpi-value">{{ article.disponible }} <span class="stock-muted">{{ article.unite }}</span></div></div>
+        <div class="stock-kpi {% if article.etat == 'rupture' %}stock-kpi-danger{% elif article.etat == 'alerte' %}stock-kpi-warning{% endif %}"><div class="stock-kpi-label">Valeur</div><div class="stock-kpi-value">{{ "%.2f"|format(article.valeur) }} €</div></div>
+    </div>
+
+    <div class="stock-grid-2">
+        <section class="stock-panel">
+            <div class="stock-panel-head"><h2>Informations article</h2></div>
+            {% if session.get('role') == 'admin' %}
+            <form class="stock-form stock-form-grid" method="POST" action="/stock/articles/{{ article.id }}/update">
+                <div class="stock-form-group"><label>Désignation *</label><input name="designation" value="{{ article.designation }}" required></div>
+                <div class="stock-form-group"><label>Unité</label><input name="unite" value="{{ article.unite }}" required></div>
+                <div class="stock-form-group"><label>Référence fabricant</label><input name="reference_fabricant" value="{{ article.reference_fabricant or '' }}"></div>
+                <div class="stock-form-group"><label>Fabricant</label><input name="fabricant" value="{{ article.fabricant or '' }}"></div>
+                <div class="stock-form-group"><label>Catégorie</label><select name="categorie_id"><option value="">-</option>{% for c in categories %}<option value="{{ c[0] }}" {% if c[1] == article.categorie %}selected{% endif %}>{{ c[1] }}</option>{% endfor %}</select></div>
+                <div class="stock-form-group"><label>Emplacement</label><select name="emplacement_id"><option value="">-</option>{% for l in emplacements %}<option value="{{ l[0] }}" {% if l[2] == article.emplacement %}selected{% endif %}>{{ l[2] }}</option>{% endfor %}</select></div>
+                <div class="stock-form-group"><label>Stock minimum</label><input type="number" step="0.001" min="0" name="stock_min" value="{{ article.stock_min }}"></div>
+                <div class="stock-form-group"><label>Stock maximum</label><input type="number" step="0.001" min="0" name="stock_max" value="{{ article.stock_max if article.stock_max is not none else '' }}"></div>
+                <div class="stock-form-group"><label>Prix unitaire (€)</label><input type="number" step="0.01" min="0" name="prix_unitaire" value="{{ article.prix_unitaire }}"></div>
+                <div class="stock-form-group full"><label>Notes</label><textarea name="notes">{{ article.notes or '' }}</textarea></div>
+                <div class="stock-form-actions"><button type="submit">Enregistrer</button></div>
+            </form>
+            {% else %}
+            <div class="stock-summary-list">
+                <div class="stock-summary-row"><span>Catégorie</span><strong>{{ article.categorie }}</strong></div>
+                <div class="stock-summary-row"><span>Emplacement</span><strong>{{ article.emplacement }}</strong></div>
+                <div class="stock-summary-row"><span>Stock mini</span><strong>{{ article.stock_min }}</strong></div>
+                <div class="stock-summary-row"><span>Stock maxi</span><strong>{{ article.stock_max if article.stock_max is not none else '-' }}</strong></div>
+                <div class="stock-summary-row"><span>Prix unitaire</span><strong>{{ "%.2f"|format(article.prix_unitaire) }} €</strong></div>
+            </div>
+            {% endif %}
+        </section>
+
+        <section class="stock-panel">
+            <div class="stock-panel-head"><h2>Fournisseurs de la référence</h2></div>
+            {% for f in article_fournisseurs %}
+                <div class="stock-summary-row">
+                    <span>{{ f[1] }}{% if f[5] %} <span class="stock-badge stock-badge-ok">Préféré</span>{% endif %}</span>
+                    <strong>{{ f[2] or '-' }} · {{ f[3] or '-' }} € · {{ f[4] or '-' }} j</strong>
+                </div>
+            {% else %}
+                <div class="stock-empty">Aucun fournisseur lié à cet article.</div>
+            {% endfor %}
+
+            {% if session.get('role') == 'admin' and fournisseurs %}
+            <hr style="border:0;border-top:1px solid #e2e8f0;margin:18px 0;">
+            <form class="stock-form stock-form-grid" method="POST" action="/stock/articles/{{ article.id }}/supplier">
+                <div class="stock-form-group full"><label>Fournisseur</label><select name="supplier_id" required>{% for f in fournisseurs %}<option value="{{ f[0] }}">{{ f[1] }}</option>{% endfor %}</select></div>
+                <div class="stock-form-group"><label>Référence fournisseur</label><input name="reference_fournisseur"></div>
+                <div class="stock-form-group"><label>Prix (€)</label><input type="number" step="0.01" min="0" name="prix"></div>
+                <div class="stock-form-group"><label>Délai (jours)</label><input type="number" min="0" name="delai_jours"></div>
+                <div class="stock-form-group"><label>Fournisseur préféré</label><select name="prefere"><option value="0">Non</option><option value="1">Oui</option></select></div>
+                <div class="stock-form-actions"><button type="submit">Lier / mettre à jour</button></div>
+            </form>
+            {% endif %}
+        </section>
+    </div>
+
+    <section class="stock-panel">
+        <div class="stock-panel-head"><h2>Historique des mouvements</h2><a class="stock-btn-light" href="/stock?section=mouvements">Tous les mouvements</a></div>
+        <div class="stock-table-wrap">
+            <table class="stock-table">
+                <thead><tr><th>Date</th><th>Type</th><th>Quantité</th><th>Prix</th><th>Motif</th><th>Utilisateur</th><th>Intervention</th></tr></thead>
+                <tbody>
+                {% for h in historique %}
+                    <tr>
+                        <td>{{ h[0] }}</td>
+                        <td><span class="stock-badge stock-badge-neutral">{{ h[1] }}</span></td>
+                        <td class="{% if h[2] >= 0 %}stock-qty-positive{% else %}stock-qty-negative{% endif %}">{{ '+' if h[2] >= 0 else '' }}{{ h[2] }}</td>
+                        <td>{{ h[3] or '-' }}</td><td>{{ h[4] or '-' }}</td><td>{{ h[5] }}</td>
+                        <td>{% if h[6] %}<a class="stock-ref" href="/stock/intervention/{{ h[6] }}">#{{ h[6] }}</a> · {{ h[7] }}{% else %}-{% endif %}</td>
+                    </tr>
+                {% else %}<tr><td colspan="7" class="stock-empty">Aucun mouvement.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+{% endblock %}
