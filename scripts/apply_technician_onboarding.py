@@ -28,7 +28,10 @@ def require_technician_profile():
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id FROM techniciens WHERE user_id = ? LIMIT 1", (user_id,))
+    cursor.execute(
+        "SELECT technicien_id FROM technicien_user_links WHERE user_id = ? LIMIT 1",
+        (user_id,),
+    )
     profile = cursor.fetchone()
     conn.close()
 
@@ -49,7 +52,10 @@ def technicien_onboarding():
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id FROM techniciens WHERE user_id = ? LIMIT 1", (user_id,))
+    cursor.execute(
+        "SELECT technicien_id FROM technicien_user_links WHERE user_id = ? LIMIT 1",
+        (user_id,),
+    )
     existing = cursor.fetchone()
 
     if existing:
@@ -74,14 +80,28 @@ def technicien_onboarding():
         cursor.execute(
             """
             INSERT INTO techniciens
-            (user_id, nom, prenom, code, specialite, statut)
-            VALUES (?, ?, ?, ?, ?, ?)
+            (nom, prenom, code, specialite, statut)
+            VALUES (?, ?, ?, ?, ?)
             """,
-            (user_id, nom, prenom, code, specialite or None, statut),
+            (nom, prenom, code, specialite or None, statut),
         )
+        technicien_id = cursor.lastrowid
+
+        if not technicien_id:
+            conn.rollback()
+            conn.close()
+            return "Impossible de créer le profil technicien.", 500
+
+        cursor.execute(
+            """
+            INSERT INTO technicien_user_links (user_id, technicien_id)
+            VALUES (?, ?)
+            """,
+            (user_id, technicien_id),
+        )
+
         conn.commit()
         conn.close()
-
         return redirect("/")
 
     conn.close()
@@ -119,7 +139,7 @@ def main() -> int:
     APP_PATH.write_text(patched, encoding="utf-8")
 
     print("Onboarding technicien ajouté à app.py.")
-    print("IMPORTANT : appliquez ensuite la migration Flask-Migrate ajoutant techniciens.user_id.")
+    print("IMPORTANT : appliquez ensuite la migration Flask-Migrate créant technicien_user_links.")
     return 0
 
 
