@@ -162,7 +162,7 @@ body.tabs-layout .mobile-bottom-nav {
 ========================================================= */
 body.tabs-layout .drawer {
     width: min(var(--creation-drawer-width), 100vw);
-    right: calc(-1 * var(--creation-drawer-width) - 30px);
+    right: -550px;
     top: 110px;
     height: calc(100vh - 110px);
     box-sizing: border-box;
