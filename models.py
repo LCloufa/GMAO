@@ -40,6 +40,24 @@ class Technicien(db.Model):
     statut = db.Column(db.String(50), nullable=False, default="Actif")
 
 
+class TechnicienUserLink(db.Model):
+    __tablename__ = "technicien_user_links"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+    )
+    technicien_id = db.Column(
+        db.Integer,
+        db.ForeignKey("techniciens.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+    )
+
+
 class Equipement(db.Model):
     __tablename__ = "equipements"
 
