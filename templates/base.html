@@ -158,10 +158,13 @@ function openIntervention(id) {
         .then(response => response.json())
         .then(data => {
             document.getElementById("drawerTitle").innerText = data.title;
+            const durationText = Number(data.estimated_duration || 0) > 0
+                ? `${data.estimated_duration} min`
+                : "Ouverte jusqu’au rapport";
 
             document.getElementById("drawerBody").innerHTML = `
                 <p><strong>Date :</strong> ${data.scheduled_date} ${data.scheduled_time || ""}</p>
-                <p><strong>Durée :</strong> ${data.estimated_duration} min</p>
+                <p><strong>Durée :</strong> ${durationText}</p>
                 <p><strong>Technicien :</strong> ${data.technicien_nom || "-"}</p>
                 <p><strong>Équipement :</strong> ${data.equipement_nom}</p>
                 <p><strong>Description :</strong> ${data.description || "-"}</p>
@@ -250,6 +253,7 @@ function openInterventionForm() {
         });
 }
 </script>
+<script src="/static/open-duration-interventions.js"></script>
 
 </body>
 </html>
