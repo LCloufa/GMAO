@@ -11,8 +11,9 @@
            name="nom"
            value="{{ equipement.nom }}"
            placeholder=" "
-           class="floating-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
-    <label class="floating-label">Nom</label>
+           class="floating-input"
+           required autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <label class="floating-label">Nom *</label>
 </div>
     <div class="floating-group">
     <input type="text"
@@ -33,7 +34,7 @@
 </div>
 
 <div class="form-row">
-    <select name="statut">
+    <select name="statut" required>
         <option value="Opérationnel" {% if equipement.statut=="Opérationnel" %}selected{% endif %}>Opérationnel</option>
         <option value="En maintenance" {% if equipement.statut=="En maintenance" %}selected{% endif %}>En maintenance</option>
         <option value="Hors service" {% if equipement.statut=="Hors service" %}selected{% endif %}>Hors service</option>
@@ -48,7 +49,8 @@
     <label class="floating-label">Emplacement</label>
 </div>
 
-    <select name="client_id">
+    <select name="client_id" required>
+        <option value="" disabled {% if not equipement.client_id %}selected{% endif %}>Client *</option>
         {% for c in clients %}
             <option value="{{ c[0] }}"
                 {% if c[0]==equipement.client_id %}selected{% endif %}>
@@ -78,7 +80,7 @@
     <div class="floating-group">
     <input type="text"
            name="numero_serie"
-           value="{{ equipement.nmero_serie }}"
+           value="{{ equipement.numero_serie }}"
            placeholder=" "
            class="floating-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
     <label class="floating-label">Numéro de série</label>
@@ -92,7 +94,6 @@
            placeholder=" "
            class="floating-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
     <label class="floating-label">Date d'installation</label>
-</div>
 </div>
 
 <hr>
