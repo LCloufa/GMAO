@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div style="max-width:760px; margin:40px auto;">
+    <div class="card" style="padding:28px; border-radius:18px;">
+        <div style="margin-bottom:24px;">
+            <div style="font-size:13px; font-weight:700; color:#2563eb; text-transform:uppercase; letter-spacing:.08em;">Première connexion technicien</div>
+            <h1 style="margin:8px 0 8px;">Compléter mon profil</h1>
+            <p style="margin:0; color:#64748b; line-height:1.5;">
+                Renseignez vos informations technicien. Une fois le profil enregistré, vous accéderez à la GMAO.
+            </p>
+        </div>
+
+        <form method="POST" action="/mon-profil-technicien" class="creation-form" autocomplete="off">
+            <div class="floating-group">
+                <input type="text" name="nom" class="floating-input" placeholder=" " required autocomplete="off">
+                <label class="floating-label">Nom *</label>
+            </div>
+
+            <div class="floating-group">
+                <input type="text" name="prenom" class="floating-input" placeholder=" " required autocomplete="off">
+                <label class="floating-label">Prénom *</label>
+            </div>
+
+            <div class="floating-group">
+                <input type="text" name="code" class="floating-input" placeholder=" " required autocomplete="off">
+                <label class="floating-label">Code *</label>
+            </div>
+
+            <div class="floating-group">
+                <input type="email" name="email" class="floating-input" placeholder=" " autocomplete="off">
+                <label class="floating-label">Email</label>
+            </div>
+
+            <div class="floating-group">
+                <input type="tel" name="telephone" class="floating-input" placeholder=" " autocomplete="off">
+                <label class="floating-label">Téléphone</label>
+            </div>
+
+            <div class="floating-group">
+                <input type="text" name="specialite" class="floating-input" placeholder=" " autocomplete="off">
+                <label class="floating-label">Spécialité</label>
+            </div>
+
+            <div class="floating-group">
+                <select name="statut" class="floating-input" required>
+                    <option value="Actif" selected>Actif</option>
+                    <option value="Inactif">Inactif</option>
+                </select>
+                <label class="floating-label">Statut *</label>
+            </div>
+
+            <div class="form-actions" style="justify-content:flex-end; margin-top:24px;">
+                <a href="/logout" class="btn-secondary" style="text-decoration:none;">Se déconnecter</a>
+                <button type="submit" class="btn-primary">Enregistrer et accéder à la GMAO</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
