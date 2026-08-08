@@ -892,9 +892,9 @@ def add_equipement():
     cursor = conn.cursor()
 
     cursor.execute("""
-        INSERT INTO equipements (nom, type, numero_serie, emplacement, client_id)
+        INSERT INTO equipements (nom, type, numero_serie, localisation, client_id)
         VALUES (?, ?, ?, ?, ?)
-    """, (nom, type_eq, numero_serie, emplacement, client_id))
+    """, (nom, type_eq, numero_serie, localisation, client_id))
 
     conn.commit()
     conn.close()
