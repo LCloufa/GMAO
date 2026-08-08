@@ -178,11 +178,12 @@ function openIntervention(id) {
             const durationText = Number(data.estimated_duration || 0) > 0
                 ? `${data.estimated_duration} min`
                 : "Ouverte jusqu’au rapport";
+            const technicianCode = data.technicien_code || "-";
 
             document.getElementById("drawerBody").innerHTML = `
                 <p><strong>Date :</strong> ${data.scheduled_date} ${data.scheduled_time || ""}</p>
                 <p><strong>Durée :</strong> ${durationText}</p>
-                <p><strong>Technicien :</strong> ${data.technicien_nom || "-"}</p>
+                <p><strong>Technicien :</strong> ${technicianCode}</p>
                 <p><strong>Équipement :</strong> ${data.equipement_nom}</p>
                 <p><strong>Description :</strong> ${data.description || "-"}</p>
 

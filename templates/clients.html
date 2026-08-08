@@ -6,6 +6,12 @@
     <button type="button" class="btn-primary" onclick="openNewClientDrawer()">+ Nouveau client</button>
 </div>
 
+{% if request.args.get('error') == 'used' %}
+<div style="margin-bottom:18px; padding:14px 16px; border-radius:12px; background:#fef2f2; color:#991b1b; border:1px solid #fecaca;">
+    Impossible de supprimer ce client : un ou plusieurs équipements lui sont encore rattachés. Réaffectez ou supprimez d’abord ces équipements pour préserver l’historique.
+</div>
+{% endif %}
+
 <table>
     <tr>
         <th>Nom</th>
@@ -33,7 +39,7 @@
         <td>{{ (c[6] / 60)|round(2) }}</td>
         <td>
             <a href="/modifier_client/{{ c[0] }}" class="btn-edit">Modifier</a>
-            <a href="/clients/delete/{{ c[0] }}" class="btn-delete">Supprimer</a>
+            <a href="/clients/delete/{{ c[0] }}" class="btn-delete" onclick="return confirm('Supprimer ce client ?')">Supprimer</a>
         </td>
     </tr>
 {% endfor %}
