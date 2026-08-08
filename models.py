@@ -31,7 +31,6 @@ class Technicien(db.Model):
     __tablename__ = "techniciens"
 
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), unique=True, nullable=True)
     nom = db.Column(db.String(255), nullable=False)
     prenom = db.Column(db.String(255), nullable=False)
     code = db.Column(db.String(100), nullable=False)
@@ -39,6 +38,24 @@ class Technicien(db.Model):
     telephone = db.Column(db.String(100))
     specialite = db.Column(db.String(255))
     statut = db.Column(db.String(50), nullable=False, default="Actif")
+
+
+class TechnicienUserLink(db.Model):
+    __tablename__ = "technicien_user_links"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+    )
+    technicien_id = db.Column(
+        db.Integer,
+        db.ForeignKey("techniciens.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+    )
 
 
 class Equipement(db.Model):
