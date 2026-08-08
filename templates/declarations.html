@@ -9,9 +9,9 @@
     </p>
   </div>
 
-  <a href="/declarations/nouvelle" class="btn-danger" style="text-decoration:none;">
+  <button type="button" class="btn-danger" onclick="openRemoteCreationForm('/declarations/nouvelle', 'Déclarer une panne')">
     ⚠ Déclarer une panne
-  </a>
+  </button>
 </div>
 
 <div class="cards" style="margin-bottom:18px;">
@@ -22,7 +22,6 @@
 </div>
 
 <form method="GET" class="card" style="padding:16px; border-radius:16px; margin-bottom:18px;">
-  <form method="POST" autocomplete="off">
   <div style="display:flex; gap:12px; align-items:center;">
     <input name="q" value="{{ q }}" placeholder="Rechercher..." style="flex:1; margin:0;">
     <select name="status" style="min-width:220px; margin:0;" onchange="this.form.submit()">
@@ -40,28 +39,21 @@
   <div class="declaration-row">
 
     <div style="display:flex; gap:14px; align-items:flex-start;">
-      <div class="decl-icon">
-        ⚠
-      </div>
+      <div class="decl-icon">⚠</div>
 
       <div style="min-width:0;">
-        <div style="font-weight:700; font-size:16px; color:#111827;">
-          {{ d[1] }}
-        </div>
+        <div style="font-weight:700; font-size:16px; color:#111827;">{{ d[1] }}</div>
 
         <div style="color:#64748b; margin-top:2px;">
           {{ d[7] }}{% if d[8] %} · {{ d[8] }}{% endif %}
           · Par {{ d[9] if d[9] else (d[10] if d[10] else '-') }}
         </div>
 
-        <div style="color:#334155; margin-top:8px; white-space:pre-line;">
-          {{ d[2] }}
-        </div>
+        <div style="color:#334155; margin-top:8px; white-space:pre-line;">{{ d[2] }}</div>
       </div>
     </div>
 
     <div style="text-align:right;">
-      <!-- Statut -->
       {% if d[5] == "pending" %}
         <span class="badge decl-status-pending">En attente</span>
       {% elif d[5] == "in_progress" %}
@@ -72,7 +64,6 @@
         <span class="badge decl-status-rejected">Rejetée</span>
       {% endif %}
 
-      <!-- Urgence -->
       <div style="margin-top:10px;">
         {% if d[3] == "low" %}
           <span class="badge priority-low">Basse</span>
@@ -85,25 +76,20 @@
         {% endif %}
       </div>
 
-      <div style="margin-top:10px; color:#94a3b8; font-size:13px;">
-        {{ d[6] }}
-      </div>
+      <div style="margin-top:10px; color:#94a3b8; font-size:13px;">{{ d[6] }}</div>
 
       {% if session['role'] in ['technician','admin'] %}
         {% set declaration_locked = d[5] in ['in_progress', 'resolved', 'rejected'] or d[11] %}
         <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
           {% if not declaration_locked %}
-            <a class="btn-secondary" style="text-decoration:none;"
-               href="/declarations/{{ d[0] }}/status/in_progress">Passer en cours</a>
+            <a class="btn-secondary" style="text-decoration:none;" href="/declarations/{{ d[0] }}/status/in_progress">Passer en cours</a>
+            <a class="btn-secondary" style="text-decoration:none;" href="/declarations/{{ d[0] }}/status/resolved">Résoudre</a>
+            <a class="btn-secondary" style="text-decoration:none;" href="/declarations/{{ d[0] }}/status/rejected">Rejeter</a>
 
-            <a class="btn-secondary" style="text-decoration:none;"
-               href="/declarations/{{ d[0] }}/status/resolved">Résoudre</a>
-
-            <a class="btn-secondary" style="text-decoration:none;"
-               href="/declarations/{{ d[0] }}/status/rejected">Rejeter</a>
-
-            <a class="btn-primary" style="text-decoration:none;"
-               href="/declarations/{{ d[0] }}/create_intervention">Créer intervention</a>
+            <button type="button" class="btn-primary"
+                    onclick="openRemoteCreationForm('/declarations/{{ d[0] }}/create_intervention', 'Nouvelle intervention')">
+              Créer intervention
+            </button>
           {% else %}
             <span class="badge status-resolved">Déclaration verrouillée</span>
             {% if session['role'] == 'admin' %}
@@ -123,10 +109,50 @@
           {% endif %}
         </div>
       {% endif %}
-
     </div>
-
   </div>
 {% endfor %}
+
+<script>
+function openRemoteCreationForm(url, title) {
+  fetch(url)
+    .then(response => {
+      if (!response.ok) throw new Error("Impossible de charger le formulaire");
+      return response.text();
+    })
+    .then(html => {
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      const source = doc.querySelector("main.main") || doc.querySelector(".main") || doc.body;
+      const heading = source.querySelector("h1");
+      if (heading) heading.remove();
+
+      document.getElementById("drawerTitle").textContent = title;
+      document.getElementById("drawerBody").innerHTML = source.innerHTML;
+
+      const drawerBody = document.getElementById("drawerBody");
+      drawerBody.querySelectorAll(".card").forEach(card => card.classList.add("drawer-card-flat"));
+
+      const form = drawerBody.querySelector("form");
+      if (form) {
+        form.classList.add("creation-form");
+        if (!form.getAttribute("action")) form.setAttribute("action", url);
+      }
+
+      const cancelLink = Array.from(drawerBody.querySelectorAll("a")).find(a => a.textContent.trim() === "Annuler");
+      if (cancelLink) {
+        cancelLink.addEventListener("click", function(event) {
+          event.preventDefault();
+          closeDrawer();
+        });
+      }
+
+      document.getElementById("drawer").classList.add("open");
+    })
+    .catch(error => {
+      console.error(error);
+      alert("Le formulaire n'a pas pu être chargé.");
+    });
+}
+</script>
 
 {% endblock %}

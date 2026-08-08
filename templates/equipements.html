@@ -5,9 +5,9 @@
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:30px; gap:16px; flex-wrap:wrap;">
     <h1 style="margin:0;">Gestion des équipements</h1>
 
-    <a href="/equipements/nouveau" class="btn-primary">
+    <button type="button" class="btn-primary" onclick="openEquipmentCreation()">
         + Nouvel équipement
-    </a>
+    </button>
 </div>
 
 <form id="equipmentFilters" method="get" action="/equipements" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin-bottom:24px;">
@@ -115,21 +115,66 @@ if (clientSelect) {
     clientSelect.addEventListener("change", submitFilters);
 }
 
-
 function handleClick(event, id) {
-
     if (clickTimer) {
         clearTimeout(clickTimer);
         clickTimer = null;
-
-        // DOUBLE CLIC → modifier
         window.location.href = "/modifier_equipement/" + id;
     } else {
         clickTimer = setTimeout(function() {
-            // SIMPLE CLIC → fiche
             window.location.href = "/equipements/" + id;
             clickTimer = null;
         }, 250);
+    }
+}
+
+function openEquipmentCreation() {
+    const url = "/equipements/nouveau";
+
+    fetch(url)
+        .then(response => {
+            if (!response.ok) throw new Error("Impossible de charger le formulaire");
+            return response.text();
+        })
+        .then(html => {
+            const doc = new DOMParser().parseFromString(html, "text/html");
+            const source = doc.querySelector("main.main") || doc.querySelector(".main") || doc.body;
+            const heading = source.querySelector("h1");
+            if (heading) heading.remove();
+
+            document.getElementById("drawerTitle").textContent = "Nouvel équipement";
+            document.getElementById("drawerBody").innerHTML = source.innerHTML;
+
+            const drawerBody = document.getElementById("drawerBody");
+            const form = drawerBody.querySelector("form");
+            if (form) form.classList.add("creation-form");
+
+            const cancelLink = Array.from(drawerBody.querySelectorAll("a")).find(a => a.textContent.trim() === "Annuler");
+            if (cancelLink) {
+                cancelLink.addEventListener("click", function(event) {
+                    event.preventDefault();
+                    closeDrawer();
+                });
+            }
+
+            document.getElementById("drawer").classList.add("open");
+        })
+        .catch(error => {
+            console.error(error);
+            alert("Le formulaire d'équipement n'a pas pu être chargé.");
+        });
+}
+
+function updateFileName(input, targetId) {
+    const target = document.getElementById(targetId);
+    if (!target) return;
+
+    if (input.files.length === 1) {
+        target.textContent = input.files[0].name;
+    } else if (input.files.length > 1) {
+        target.textContent = input.files.length + " fichiers sélectionnés";
+    } else {
+        target.textContent = "";
     }
 }
 </script>

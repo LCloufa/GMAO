@@ -4,7 +4,7 @@
 
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; gap:12px;">
     <h1 style="margin:0;">Gestion des techniciens</h1>
-    <button type="button" class="btn-primary" onclick="openNewTechnicienModal()">Ajouter</button>
+    <button type="button" class="btn-primary" onclick="openNewTechnicienDrawer()">Ajouter</button>
 </div>
 
 <div class="actions-row" style="margin-bottom:18px;">
@@ -48,85 +48,47 @@
     {% endfor %}
 </table>
 
-<style>
-    .ce-field {
-        min-height: 44px;
-        border: 1px solid #cbd5e1;
-        border-radius: 14px;
-        padding: 10px 14px;
-        background: #fff;
-        outline: none;
-    }
-    .ce-field:focus {
-        border-color: #111827;
-        box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.08);
-    }
-    .ce-field:empty::before {
-        content: attr(data-placeholder);
-        color: #64748b;
-    }
-</style>
+<template id="newTechnicienTemplate">
+    <form action="/techniciens/add" method="POST" class="creation-form" autocomplete="off">
+        <div class="floating-group">
+            <input type="text" name="nom" class="floating-input" placeholder=" " required autocomplete="off">
+            <label class="floating-label">Nom *</label>
+        </div>
 
-<div id="newTechnicienModal" onclick="closeTechnicienModalOnBackdrop(event)" style="display:none; position:fixed; inset:0; z-index:1200; background:rgba(15, 23, 42, 0.35);">
-    <div style="position:relative; width:min(1120px, 92vw); margin:24px auto; background:#fff; border-radius:22px; padding:30px 34px; max-height:calc(100vh - 48px); overflow:auto;">
-        <button type="button" onclick="closeNewTechnicienModal()" aria-label="Fermer" style="position:absolute; top:20px; right:20px; border:none; background:transparent; font-size:38px; line-height:1; color:#334155; cursor:pointer;">×</button>
+        <div class="floating-group">
+            <input type="text" name="prenom" class="floating-input" placeholder=" " required autocomplete="off">
+            <label class="floating-label">Prénom *</label>
+        </div>
 
-        <h1 style="margin-bottom:24px;">Nouveau technicien</h1>
-        <hr style="border:none; border-top:1px solid #e2e8f0; margin:0 0 24px;">
+        <div class="floating-group">
+            <input type="text" name="code" class="floating-input" placeholder=" " required autocomplete="off">
+            <label class="floating-label">Code *</label>
+        </div>
 
-        <form action="/techniciens/add" method="POST" class="form" autocomplete="off" onsubmit="syncTechnicienFormFields(this)">
-            <input type="text" name="fake_username" autocomplete="username" tabindex="-1" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;">
-            <input type="password" name="fake_password" autocomplete="new-password" tabindex="-1" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;">
-            <input type="hidden" name="nom">
-            <input type="hidden" name="prenom">
-            <input type="hidden" name="code">
-            <input type="hidden" name="specialite">
+        <div class="floating-group">
+            <input type="text" name="specialite" class="floating-input" placeholder=" " autocomplete="off">
+            <label class="floating-label">Spécialité</label>
+        </div>
 
-            <div class="form-row">
-                <div>
-                    <label style="display:block; margin-bottom:8px; font-weight:600;">Nom *</label>
-                    <div class="ce-field" contenteditable="true" data-field="nom" data-placeholder="Nom du technicien" tabindex="0"></div>
-                </div>
-                <div>
-                    <label style="display:block; margin-bottom:8px; font-weight:600;">Prénom *</label>
-                    <div class="ce-field" contenteditable="true" data-field="prenom" data-placeholder="Prénom du technicien" tabindex="0"></div>
-                </div>
-            </div>
+        <div class="floating-group">
+            <select name="statut" class="floating-input">
+                <option value="Actif">Actif</option>
+                <option value="Inactif">Inactif</option>
+            </select>
+            <label class="floating-label">Statut</label>
+        </div>
 
-            <div class="form-row">
-                <div>
-                    <label style="display:block; margin-bottom:8px; font-weight:600;">Code *</label>
-                    <div class="ce-field" contenteditable="true" data-field="code" data-placeholder="Code technicien" tabindex="0"></div>
-                </div>
-                <div>
-                    <label style="display:block; margin-bottom:8px; font-weight:600;">Spécialité</label>
-                    <div class="ce-field" contenteditable="true" data-field="specialite" data-placeholder="Spécialité" tabindex="0"></div>
-                </div>
-            </div>
-
-            <div class="form-row">
-                <div>
-                    <label style="display:block; margin-bottom:8px; font-weight:600;">Statut</label>
-                    <select name="statut">
-                        <option value="Actif">Actif</option>
-                        <option value="Inactif">Inactif</option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="actions-row" style="margin-top:25px; justify-content:flex-end;">
-                <button type="button" class="btn-secondary" onclick="closeNewTechnicienModal()">Annuler</button>
-                <button type="submit" class="btn-primary">Créer le technicien</button>
-            </div>
-        </form>
-    </div>
-</div>
+        <div class="form-actions">
+            <button type="button" class="btn-secondary" onclick="closeDrawer()">Annuler</button>
+            <button type="submit" class="btn-primary">Créer le technicien</button>
+        </div>
+    </form>
+</template>
 
 <script>
 let selectedTechId = null;
 
 function selectTech(row, id) {
-
     if (selectedTechId === id) {
         row.classList.remove("selected-row");
         selectedTechId = null;
@@ -140,7 +102,6 @@ function selectTech(row, id) {
 
     row.classList.add("selected-row");
     selectedTechId = id;
-
     document.getElementById("technicienActions").classList.remove("hidden");
 }
 
@@ -156,46 +117,11 @@ function supprimerTechnicien() {
     }
 }
 
-function openNewTechnicienModal() {
-    const modal = document.getElementById("newTechnicienModal");
-    if (!modal) return;
-    modal.style.display = "block";
-    document.body.style.overflow = "hidden";
-}
-
-function closeNewTechnicienModal() {
-    const modal = document.getElementById("newTechnicienModal");
-    if (!modal) return;
-    modal.style.display = "none";
-    document.body.style.overflow = "";
-}
-
-function closeTechnicienModalOnBackdrop(event) {
-    if (event.target && event.target.id === "newTechnicienModal") {
-        closeNewTechnicienModal();
-    }
-}
-
-document.addEventListener("keydown", function (event) {
-    if (event.key === "Escape") closeNewTechnicienModal();
-});
-
-function syncTechnicienFormFields(form) {
-    const get = (field) => {
-        const el = form.querySelector(`.ce-field[data-field="${field}"]`);
-        return (el?.textContent || "").trim();
-    };
-
-    form.elements.nom.value = get("nom");
-    form.elements.prenom.value = get("prenom");
-    form.elements.code.value = get("code");
-    form.elements.specialite.value = get("specialite");
-
-    if (!form.elements.nom.value || !form.elements.prenom.value || !form.elements.code.value) {
-        alert("Nom, prénom et code sont obligatoires.");
-        return false;
-    }
-    return true;
+function openNewTechnicienDrawer() {
+    const template = document.getElementById("newTechnicienTemplate");
+    document.getElementById("drawerTitle").textContent = "Nouveau technicien";
+    document.getElementById("drawerBody").innerHTML = template.innerHTML;
+    document.getElementById("drawer").classList.add("open");
 }
 </script>
 

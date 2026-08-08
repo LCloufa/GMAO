@@ -1,7 +1,4 @@
-<h1 style="margin-bottom:30px;">Nouvelle intervention</h1>
-
-<form action="/interventions/add" method="POST" class="form-vertical">
-    <form method="POST" autocomplete="off">
+<form action="/interventions/add" method="POST" class="form-vertical" autocomplete="off">
 
     <div class="floating-group">
         <input type="text"
@@ -13,7 +10,6 @@
     </div>
 
     <div class="form-row">
-
         <div class="floating-group">
             <select name="equipment_id" required class="floating-input">
                 <option value=""></option>
@@ -33,11 +29,9 @@
             </select>
             <label class="floating-label">Technicien assigné</label>
         </div>
-
     </div>
 
     <div class="form-row">
-
         <div class="floating-group">
             <select name="type" required class="floating-input">
                 <option value="preventive">Préventive</option>
@@ -57,11 +51,9 @@
             </select>
             <label class="floating-label">Priorité</label>
         </div>
-
     </div>
 
     <div class="form-row">
-
         <div class="floating-group">
             <input type="date"
                    name="scheduled_date"
@@ -89,7 +81,6 @@
                    required>
             <label class="floating-label">Durée estimée (heures)</label>
         </div>
-
     </div>
 
     <div class="floating-group">
@@ -101,14 +92,8 @@
     </div>
 
     <div class="form-actions">
-        <button type="button" class="btn-secondary" onclick="closeDrawer()">
-            Annuler
-        </button>
-
-        <button type="submit" class="btn-primary">
-            Créer l'intervention
-        </button>
+        <button type="button" class="btn-secondary" onclick="closeDrawer()">Annuler</button>
+        <button type="submit" class="btn-primary">Créer l'intervention</button>
     </div>
 
 </form>
-
