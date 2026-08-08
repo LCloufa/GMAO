@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import CheckConstraint
+from sqlalchemy import CheckConstraint, UniqueConstraint
 
 
 db = SQLAlchemy()
@@ -171,3 +171,126 @@ class RapportIntervention(db.Model):
     created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime)
+
+
+# ==========================
+# Gestion de stock maintenance
+# ==========================
+
+
+class StockCategory(db.Model):
+    __tablename__ = "stock_categories"
+
+    id = db.Column(db.Integer, primary_key=True)
+    nom = db.Column(db.String(255), unique=True, nullable=False)
+    description = db.Column(db.Text)
+
+
+class StockLocation(db.Model):
+    __tablename__ = "stock_locations"
+
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(100), unique=True)
+    nom = db.Column(db.String(255), nullable=False)
+    parent_id = db.Column(db.Integer, db.ForeignKey("stock_locations.id", ondelete="SET NULL"))
+    description = db.Column(db.Text)
+
+
+class StockSupplier(db.Model):
+    __tablename__ = "stock_suppliers"
+
+    id = db.Column(db.Integer, primary_key=True)
+    nom = db.Column(db.String(255), nullable=False)
+    contact = db.Column(db.String(255))
+    email = db.Column(db.String(255))
+    telephone = db.Column(db.String(100))
+    site_web = db.Column(db.String(500))
+    actif = db.Column(db.Boolean, nullable=False, default=True)
+    notes = db.Column(db.Text)
+
+
+class StockArticle(db.Model):
+    __tablename__ = "stock_articles"
+
+    id = db.Column(db.Integer, primary_key=True)
+    reference = db.Column(db.String(150), unique=True, nullable=False)
+    designation = db.Column(db.String(500), nullable=False)
+    reference_fabricant = db.Column(db.String(255))
+    fabricant = db.Column(db.String(255))
+    unite = db.Column(db.String(50), nullable=False, default="pièce")
+    categorie_id = db.Column(db.Integer, db.ForeignKey("stock_categories.id", ondelete="SET NULL"))
+    emplacement_id = db.Column(db.Integer, db.ForeignKey("stock_locations.id", ondelete="SET NULL"))
+    stock_min = db.Column(db.Numeric(14, 3), nullable=False, default=0)
+    stock_max = db.Column(db.Numeric(14, 3))
+    prix_unitaire = db.Column(db.Numeric(14, 2), nullable=False, default=0)
+    actif = db.Column(db.Boolean, nullable=False, default=True)
+    photo = db.Column(db.Text)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+class StockArticleSupplier(db.Model):
+    __tablename__ = "stock_article_suppliers"
+    __table_args__ = (
+        UniqueConstraint("article_id", "supplier_id", name="uq_stock_article_supplier"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    article_id = db.Column(db.Integer, db.ForeignKey("stock_articles.id", ondelete="CASCADE"), nullable=False)
+    supplier_id = db.Column(db.Integer, db.ForeignKey("stock_suppliers.id", ondelete="CASCADE"), nullable=False)
+    reference_fournisseur = db.Column(db.String(255))
+    prix = db.Column(db.Numeric(14, 2))
+    delai_jours = db.Column(db.Integer)
+    prefere = db.Column(db.Boolean, nullable=False, default=False)
+
+
+class StockMovement(db.Model):
+    __tablename__ = "stock_movements"
+    __table_args__ = (
+        CheckConstraint(
+            "type_mouvement IN ('entree','sortie','correction','inventaire','consommation','retour')",
+            name="ck_stock_movements_type",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    article_id = db.Column(db.Integer, db.ForeignKey("stock_articles.id"), nullable=False)
+    type_mouvement = db.Column(db.String(30), nullable=False)
+    quantite_delta = db.Column(db.Numeric(14, 3), nullable=False)
+    prix_unitaire = db.Column(db.Numeric(14, 2))
+    motif = db.Column(db.Text)
+    intervention_id = db.Column(db.Integer, db.ForeignKey("interventions.id", ondelete="SET NULL"))
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+class StockReservation(db.Model):
+    __tablename__ = "stock_reservations"
+    __table_args__ = (
+        CheckConstraint(
+            "statut IN ('reserved','consumed','cancelled')",
+            name="ck_stock_reservations_status",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    article_id = db.Column(db.Integer, db.ForeignKey("stock_articles.id"), nullable=False)
+    intervention_id = db.Column(db.Integer, db.ForeignKey("interventions.id", ondelete="CASCADE"), nullable=False)
+    quantite = db.Column(db.Numeric(14, 3), nullable=False)
+    quantite_consommee = db.Column(db.Numeric(14, 3), nullable=False, default=0)
+    statut = db.Column(db.String(30), nullable=False, default="reserved")
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+class InterventionStockItem(db.Model):
+    __tablename__ = "intervention_stock_items"
+
+    id = db.Column(db.Integer, primary_key=True)
+    intervention_id = db.Column(db.Integer, db.ForeignKey("interventions.id", ondelete="CASCADE"), nullable=False)
+    article_id = db.Column(db.Integer, db.ForeignKey("stock_articles.id"), nullable=False)
+    mouvement_id = db.Column(db.Integer, db.ForeignKey("stock_movements.id", ondelete="SET NULL"))
+    quantite_utilisee = db.Column(db.Numeric(14, 3), nullable=False)
+    prix_unitaire = db.Column(db.Numeric(14, 2))
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
