@@ -240,3 +240,205 @@
         return result;
     };
 })();
+
+(function () {
+    "use strict";
+
+    const RESET_WARNINGS = {
+        equipements: "Tous les équipements seront supprimés, ainsi que les interventions, rapports, déclarations de panne et documents d'équipement qui en dépendent.",
+        interventions: "Toutes les interventions et leurs rapports seront supprimés. Les déclarations liées seront détachées et remises en attente.",
+        rapports: "Tous les rapports seront supprimés. Les interventions clôturées par ces rapports seront remises en cours.",
+        declarations: "Toutes les déclarations de panne et leurs photos enregistrées en base seront supprimées."
+    };
+
+    function addAdminResetStyles() {
+        if (document.getElementById("adminResetStyles")) return;
+
+        const style = document.createElement("style");
+        style.id = "adminResetStyles";
+        style.textContent = `
+            .admin-reset-actions {
+                position: relative;
+                display: flex;
+                flex-direction: column;
+                align-items: flex-end;
+                gap: 5px;
+            }
+            .admin-reset-toggle {
+                border: 0;
+                background: transparent;
+                color: #dc2626;
+                cursor: pointer;
+                font-size: 12px;
+                font-weight: 700;
+                padding: 0;
+            }
+            .admin-reset-toggle:hover { text-decoration: underline; }
+            .admin-reset-panel {
+                display: none;
+                position: absolute;
+                top: calc(100% + 10px);
+                right: 0;
+                width: min(360px, 90vw);
+                padding: 16px;
+                background: #fff;
+                border: 1px solid #fecaca;
+                border-radius: 14px;
+                box-shadow: 0 18px 45px rgba(15, 23, 42, .18);
+                z-index: 5000;
+                text-align: left;
+            }
+            .admin-reset-panel.open { display: block; }
+            .admin-reset-panel h3 {
+                margin: 0 0 10px;
+                color: #991b1b;
+                font-size: 16px;
+            }
+            .admin-reset-panel select {
+                width: 100%;
+                margin: 0 0 10px;
+                padding: 10px 12px;
+                border: 1px solid #cbd5e1;
+                border-radius: 9px;
+                background: #fff;
+            }
+            .admin-reset-warning {
+                min-height: 42px;
+                margin: 0 0 12px;
+                color: #7f1d1d;
+                font-size: 12px;
+                line-height: 1.45;
+            }
+            .admin-reset-confirm {
+                width: 100%;
+                border: 0;
+                border-radius: 9px;
+                padding: 10px 12px;
+                background: #dc2626;
+                color: #fff;
+                font-weight: 700;
+                cursor: pointer;
+            }
+            .admin-reset-confirm:hover { background: #b91c1c; }
+            .admin-reset-success {
+                margin: 0 0 18px;
+                padding: 12px 14px;
+                border: 1px solid #bbf7d0;
+                border-radius: 12px;
+                background: #f0fdf4;
+                color: #166534;
+                font-weight: 700;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function showResetSuccessIfNeeded() {
+        const params = new URLSearchParams(window.location.search);
+        if (!params.get("reset_done")) return;
+
+        const main = document.querySelector("main.main");
+        if (main) {
+            const banner = document.createElement("div");
+            banner.className = "admin-reset-success";
+            banner.textContent = "Réinitialisation terminée.";
+            main.prepend(banner);
+        }
+
+        params.delete("reset_done");
+        const query = params.toString();
+        const cleanUrl = window.location.pathname + (query ? `?${query}` : "") + window.location.hash;
+        window.history.replaceState({}, "", cleanUrl);
+    }
+
+    function initAdminResetControl() {
+        if (!document.body.classList.contains("role-admin")) return;
+        if (document.getElementById("adminResetControl")) return;
+
+        const logoutLink = document.querySelector(".tabs-user .tabs-logout");
+        if (!logoutLink || !logoutLink.parentElement) return;
+
+        addAdminResetStyles();
+
+        const parent = logoutLink.parentElement;
+        const actions = document.createElement("div");
+        actions.className = "admin-reset-actions";
+        actions.id = "adminResetControl";
+        parent.insertBefore(actions, logoutLink);
+        actions.appendChild(logoutLink);
+
+        const toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "admin-reset-toggle";
+        toggle.textContent = "Réinitialiser des données";
+        actions.appendChild(toggle);
+
+        const panel = document.createElement("div");
+        panel.className = "admin-reset-panel";
+        panel.innerHTML = `
+            <h3>Réinitialiser des données</h3>
+            <form method="POST" action="/admin/reset-data" id="adminResetForm">
+                <select name="reset_target" id="adminResetTarget" required>
+                    <option value="">Choisir les données à réinitialiser</option>
+                    <option value="equipements">Équipements</option>
+                    <option value="interventions">Interventions</option>
+                    <option value="rapports">Rapports</option>
+                    <option value="declarations">Déclarations de panne</option>
+                </select>
+                <p class="admin-reset-warning" id="adminResetWarning">
+                    Sélectionne une catégorie pour afficher les conséquences de la réinitialisation.
+                </p>
+                <button type="submit" class="admin-reset-confirm">Confirmer</button>
+            </form>
+        `;
+        actions.appendChild(panel);
+
+        const select = panel.querySelector("#adminResetTarget");
+        const warning = panel.querySelector("#adminResetWarning");
+        const form = panel.querySelector("#adminResetForm");
+
+        toggle.addEventListener("click", function (event) {
+            event.stopPropagation();
+            panel.classList.toggle("open");
+        });
+
+        panel.addEventListener("click", function (event) {
+            event.stopPropagation();
+        });
+
+        select.addEventListener("change", function () {
+            warning.textContent = RESET_WARNINGS[select.value]
+                || "Sélectionne une catégorie pour afficher les conséquences de la réinitialisation.";
+        });
+
+        form.addEventListener("submit", function (event) {
+            const target = select.value;
+            if (!target) {
+                event.preventDefault();
+                select.focus();
+                return;
+            }
+
+            const label = select.options[select.selectedIndex].textContent;
+            const confirmed = window.confirm(
+                `Confirmer la réinitialisation de : ${label} ?\n\n${RESET_WARNINGS[target]}\n\nCette action est irréversible.`
+            );
+
+            if (!confirmed) {
+                event.preventDefault();
+            }
+        });
+
+        document.addEventListener("click", function () {
+            panel.classList.remove("open");
+        });
+
+        showResetSuccessIfNeeded();
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initAdminResetControl);
+    } else {
+        initAdminResetControl();
+    }
+})();
