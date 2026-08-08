@@ -7,6 +7,12 @@
     <button type="button" class="btn-primary" onclick="openNewTechnicienDrawer()">Ajouter</button>
 </div>
 
+{% if request.args.get('error') == 'used' %}
+<div style="margin-bottom:18px; padding:14px 16px; border-radius:12px; background:#fef2f2; color:#991b1b; border:1px solid #fecaca;">
+    Impossible de supprimer ce technicien : il est encore lié à un compte technicien ou à l’historique d’une intervention. Passez-le en <strong>Inactif</strong> pour conserver l’historique.
+</div>
+{% endif %}
+
 <div class="actions-row" style="margin-bottom:18px;">
     <div class="top-actions hidden" id="technicienActions">
         <button type="button" class="btn-primary" onclick="modifierTechnicien()">
