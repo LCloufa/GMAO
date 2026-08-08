@@ -89,10 +89,20 @@
             z-index:1000;
             white-space:nowrap;
         }
+
+        /* Un opérateur consulte le dashboard mais n'accède pas aux modules métiers. */
+        .role-operator .dashboard-toolbar {
+            display:none !important;
+        }
+
+        .role-operator .fc-event,
+        .role-operator .gantt-bar {
+            cursor:default !important;
+        }
     </style>
 </head>
 
-<body autocomplete="off" class="tabs-layout">
+<body autocomplete="off" class="tabs-layout role-{{ session.get('role', 'guest') }}">
 
 <header class="tabs-app-header">
     <div class="tabs-topline">
@@ -152,9 +162,13 @@
 </div>
 
 <script>
+const currentRole = {{ session.get("role", "")|tojson }};
+const isOperator = currentRole === "operator";
 const canWriteReport = {{ "true" if session.get("role") in ["admin", "technician"] else "false" }};
 
 function openIntervention(id) {
+    if (isOperator) return;
+
     console.log("CLICK OK :", id);
 
     fetch("/interventions/" + id + "/details")
@@ -191,6 +205,8 @@ function closeDrawer() {
 }
 
 function openReportForm(id, startTime) {
+    if (isOperator) return;
+
     document.getElementById("drawerBody").innerHTML = `
         <form method="POST" action="/rapports/add" autocomplete="off" class="report-form-modern">
             <div class="report-form-hero">
@@ -247,6 +263,8 @@ function openReportForm(id, startTime) {
 }
 
 function openInterventionForm() {
+    if (isOperator) return;
+
     fetch("/interventions/nouvelle")
         .then(response => response.text())
         .then(html => {
