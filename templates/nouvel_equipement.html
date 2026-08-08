@@ -12,7 +12,7 @@
     <div style="margin-bottom:20px;">
         <input type="text"
                name="nom"
-               placeholder="Nom de l'équipement"
+               placeholder="Nom de l'équipement *"
                required
                style="width:100%;" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
     </div>
@@ -24,7 +24,7 @@
 
         <input type="text" name="type" placeholder="Type" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
 
-        <select name="statut">
+        <select name="statut" required>
             <option value="Opérationnel">Opérationnel</option>
             <option value="En maintenance">En maintenance</option>
             <option value="Hors service">Hors service</option>
@@ -37,8 +37,8 @@
 
         <input type="text" name="emplacement" placeholder="Emplacement" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
 
-        <select name="client_id">
-            <option value="">Client</option>
+        <select name="client_id" required>
+            <option value="" selected disabled>Client *</option>
             {% for c in clients %}
                 <option value="{{ c[0] }}">{{ c[1] }}</option>
             {% endfor %}
