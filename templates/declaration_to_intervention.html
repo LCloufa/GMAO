@@ -35,9 +35,14 @@
 
     <div class="form-row">
       <input type="date" name="scheduled_date" required>
-      <input type="time" name="scheduled_time">
-      <input type="number" name="estimated_duration_hours" step="0.01" min="0" required placeholder="Durée (heures) *">
+      <input type="time" name="scheduled_time" required>
+      <input type="number" name="estimated_duration_hours" step="0.01" min="0" placeholder="Durée (heures) — optionnelle">
     </div>
+
+    <p style="margin:8px 0 0; color:#64748b; font-size:13px; line-height:1.45;">
+      Si la durée reste vide, l’intervention démarre à la date et à l’heure indiquées et reste ouverte jusqu’à la soumission du rapport.
+      Elle respecte les plages de travail 08:00–12:00 et 13:00–17:00, sauf si la priorité est <strong>Critique</strong>.
+    </p>
 
     <div style="margin-top:20px;">
       <textarea name="description" rows="5"
