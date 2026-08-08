@@ -23,7 +23,8 @@ def _database_url() -> str:
 def _translate_sql(sql: str) -> str:
     """Traduit le petit sous-ensemble SQLite encore utilisé par l'application."""
     sql = sql.replace("datetime('now')", "CURRENT_TIMESTAMP")
-    sql = sql.replace("date('now')", "CURRENT_DATE")
+    # completion_date reste pour le moment une chaîne YYYY-MM-DD comme dans SQLite.
+    sql = sql.replace("date('now')", "TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD')")
     # Les requêtes historiques utilisent les paramètres SQLite '?'.
     sql = re.sub(r"\?", "%s", sql)
     return sql
