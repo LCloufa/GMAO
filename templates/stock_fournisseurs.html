@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="stock-page">
+    <div class="stock-header">
+        <div>
+            <h1>📦 Stock maintenance</h1>
+            <p>Gestion des fournisseurs du magasin maintenance.</p>
+        </div>
+        {% if session.get('role') == 'admin' %}
+        <div class="stock-header-actions">
+            <button class="btn-primary" type="button" onclick="openSupplierDrawer()">+ Fournisseur</button>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if request.args.get('error') == 'siret' %}
+        <div class="stock-error-box">Le SIRET doit contenir exactement 14 chiffres.</div>
+    {% elif request.args.get('error') == 'siret_exists' %}
+        <div class="stock-error-box">Ce numéro de SIRET est déjà enregistré.</div>
+    {% endif %}
+
+    <div class="stock-kpis">
+        <div class="stock-kpi">
+            <div class="stock-kpi-label">Références actives</div>
+            <div class="stock-kpi-value">{{ stock_kpis.references }}</div>
+        </div>
+        <div class="stock-kpi stock-kpi-success">
+            <div class="stock-kpi-label">Valeur du stock</div>
+            <div class="stock-kpi-value">{{ "%.2f"|format(stock_kpis.valeur) }} €</div>
+        </div>
+        <div class="stock-kpi stock-kpi-warning">
+            <div class="stock-kpi-label">Sous seuil minimum</div>
+            <div class="stock-kpi-value">{{ stock_kpis.alertes }}</div>
+        </div>
+        <div class="stock-kpi stock-kpi-danger">
+            <div class="stock-kpi-label">Ruptures</div>
+            <div class="stock-kpi-value">{{ stock_kpis.ruptures }}</div>
+        </div>
+    </div>
+
+    <div class="stock-tabs">
+        <a class="stock-tab" href="/stock?section=articles">Articles</a>
+        <a class="stock-tab" href="/stock?section=mouvements">Mouvements</a>
+        <a class="stock-tab" href="/stock?section=inventaire">Inventaire</a>
+        <a class="stock-tab active" href="/stock?section=fournisseurs">Fournisseurs</a>
+        <a class="stock-tab" href="/stock?section=alertes">Alertes{% if stock_kpis.alertes %} · {{ stock_kpis.alertes }}{% endif %}</a>
+    </div>
+
+    <section class="stock-panel">
+        <div class="stock-panel-head">
+            <div>
+                <h2>Fournisseurs</h2>
+                <div class="stock-muted">Coordonnées administratives et contact principal de chaque société.</div>
+            </div>
+        </div>
+
+        <div class="stock-table-wrap">
+            <table class="stock-table">
+                <thead>
+                    <tr>
+                        <th>Société</th>
+                        <th>Adresse</th>
+                        <th>SIRET</th>
+                        <th>Contact</th>
+                        <th>Téléphone</th>
+                        <th>Email société</th>
+                        <th>Site web</th>
+                        <th>Notes</th>
+                        <th>État</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for f in fournisseurs %}
+                    <tr>
+                        <td><strong>{{ f[1] }}</strong></td>
+                        <td>{{ f[2] or '-' }}</td>
+                        <td>{{ f[3] or '-' }}</td>
+                        <td>
+                            {% if f[4] or f[5] %}
+                                {{ f[5] or '' }} {{ f[4] or '' }}
+                            {% else %}-{% endif %}
+                        </td>
+                        <td>{{ f[6] or '-' }}</td>
+                        <td>
+                            {% if f[7] %}<a class="stock-ref" href="mailto:{{ f[7] }}">{{ f[7] }}</a>{% else %}-{% endif %}
+                        </td>
+                        <td>
+                            {% if f[8] %}<a class="stock-ref" target="_blank" rel="noopener" href="{{ f[8] }}">Ouvrir</a>{% else %}-{% endif %}
+                        </td>
+                        <td>{{ f[9] or '-' }}</td>
+                        <td>
+                            {% if f[10] %}<span class="stock-badge stock-badge-ok">Actif</span>{% else %}<span class="stock-badge stock-badge-neutral">Inactif</span>{% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="9" class="stock-empty">Aucun fournisseur enregistré.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+{% if session.get('role') == 'admin' %}
+<template id="stockSupplierCompleteTemplate">
+    <form class="stock-form stock-form-grid" method="POST" action="/stock/fournisseurs/add" autocomplete="off">
+        <div class="stock-form-group full">
+            <label>Nom de la société *</label>
+            <input name="nom" required>
+        </div>
+        <div class="stock-form-group full">
+            <label>Adresse de la société</label>
+            <textarea name="adresse" rows="3"></textarea>
+        </div>
+        <div class="stock-form-group full">
+            <label>Numéro de SIRET</label>
+            <input name="siret" inputmode="numeric" maxlength="14" pattern="[0-9]{14}" placeholder="14 chiffres">
+        </div>
+        <div class="stock-form-group">
+            <label>Nom du contact</label>
+            <input name="contact_nom">
+        </div>
+        <div class="stock-form-group">
+            <label>Prénom du contact</label>
+            <input name="contact_prenom">
+        </div>
+        <div class="stock-form-group">
+            <label>Numéro de téléphone</label>
+            <input name="telephone" autocomplete="tel">
+        </div>
+        <div class="stock-form-group">
+            <label>Adresse mail de la société</label>
+            <input type="email" name="email" autocomplete="email">
+        </div>
+        <div class="stock-form-group full">
+            <label>Site web</label>
+            <input name="site_web" placeholder="https://...">
+        </div>
+        <div class="stock-form-group full">
+            <label>Notes</label>
+            <textarea name="notes" rows="4"></textarea>
+        </div>
+        <div class="stock-form-actions">
+            <button type="button" class="stock-btn-secondary" onclick="closeDrawer()">Annuler</button>
+            <button type="submit">Créer le fournisseur</button>
+        </div>
+    </form>
+</template>
+
+<script>
+function openSupplierDrawer() {
+    const template = document.getElementById("stockSupplierCompleteTemplate");
+    document.getElementById("drawerTitle").textContent = "Nouveau fournisseur";
+    document.getElementById("drawerBody").innerHTML = template.innerHTML;
+    document.getElementById("drawer").classList.add("open");
+}
+</script>
+{% endif %}
+
+{% endblock %}
