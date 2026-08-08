@@ -118,11 +118,14 @@
         <nav class="tabs-nav" aria-label="Navigation principale">
             <a href="/" class="{% if request.path == '/' %}active{% endif %}">🏠 Tableau de bord</a>
             <a href="/declarations" class="{% if request.path.startswith('/declarations') %}active{% endif %}">⚠ Déclarations de panne</a>
-            <a href="/equipements" class="{% if request.path.startswith('/equipements') or request.path.startswith('/nouvel_equipement') or request.path.startswith('/modifier_equipement') %}active{% endif %}">⚙ Équipements</a>
-            <a href="/techniciens" class="{% if request.path.startswith('/techniciens') or request.path.startswith('/modifier_technicien') %}active{% endif %}">🧰 Techniciens</a>
-            <a href="/interventions" class="{% if request.path.startswith('/interventions') %}active{% endif %}">🗓 Interventions</a>
-            <a href="/rapports" class="{% if request.path.startswith('/rapports') %}active{% endif %}">📝 Rapports</a>
-            <a href="/clients" class="{% if request.path.startswith('/clients') or request.path.startswith('/nouvel_client') or request.path.startswith('/modifier_client') %}active{% endif %}">👥 Clients</a>
+
+            {% if session.get('role') != 'operator' %}
+                <a href="/equipements" class="{% if request.path.startswith('/equipements') or request.path.startswith('/nouvel_equipement') or request.path.startswith('/modifier_equipement') %}active{% endif %}">⚙ Équipements</a>
+                <a href="/techniciens" class="{% if request.path.startswith('/techniciens') or request.path.startswith('/modifier_technicien') %}active{% endif %}">🧰 Techniciens</a>
+                <a href="/interventions" class="{% if request.path.startswith('/interventions') %}active{% endif %}">🗓 Interventions</a>
+                <a href="/rapports" class="{% if request.path.startswith('/rapports') %}active{% endif %}">📝 Rapports</a>
+                <a href="/clients" class="{% if request.path.startswith('/clients') or request.path.startswith('/nouvel_client') or request.path.startswith('/modifier_client') %}active{% endif %}">👥 Clients</a>
+            {% endif %}
 
             {% if session.get('role') == 'admin' %}
                 <a href="/users" class="{% if request.path.startswith('/users') %}active{% endif %}">🔐 Utilisateurs</a>
