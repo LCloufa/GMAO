@@ -82,18 +82,28 @@
         return segments;
     }
 
-    function cloneEventData(sourceEvent, segment, index) {
-        const props = sourceEvent.extendedProps || {};
+    function snapshotEvent(event) {
+        return {
+            title: event.title,
+            backgroundColor: event.backgroundColor,
+            borderColor: event.borderColor,
+            textColor: event.textColor,
+            extendedProps: { ...(event.extendedProps || {}) }
+        };
+    }
+
+    function cloneEventData(source, segment, index) {
+        const props = source.extendedProps || {};
         const originalId = props.orig_id;
 
         return {
             id: `open-${originalId}-${index}`,
-            title: sourceEvent.title,
+            title: source.title,
             start: segment.start,
             end: segment.end,
-            backgroundColor: sourceEvent.backgroundColor,
-            borderColor: sourceEvent.borderColor,
-            textColor: sourceEvent.textColor,
+            backgroundColor: source.backgroundColor,
+            borderColor: source.borderColor,
+            textColor: source.textColor,
             extendedProps: {
                 ...props,
                 open_duration: true
@@ -103,26 +113,43 @@
 
     async function loadDetails(calendar, interventionId) {
         calendar.__gmaoOpenDurationDetails = calendar.__gmaoOpenDurationDetails || new Map();
+        const cached = calendar.__gmaoOpenDurationDetails.get(interventionId);
+        const now = Date.now();
 
-        if (calendar.__gmaoOpenDurationDetails.has(interventionId)) {
-            return calendar.__gmaoOpenDurationDetails.get(interventionId);
+        // On rafraîchit régulièrement le statut pour détecter un rapport créé
+        // depuis un autre poste sans devoir recharger toute la page.
+        if (cached && now - cached.fetchedAt < 45000) {
+            return cached.value;
         }
 
         try {
             const response = await fetch(`/interventions/${interventionId}/details`, {
-                credentials: "same-origin"
+                credentials: "same-origin",
+                cache: "no-store"
             });
 
             if (!response.ok) {
-                return null;
+                return cached ? cached.value : null;
             }
 
             const details = await response.json();
-            calendar.__gmaoOpenDurationDetails.set(interventionId, details);
+            calendar.__gmaoOpenDurationDetails.set(interventionId, {
+                value: details,
+                fetchedAt: now
+            });
             return details;
         } catch (error) {
             console.error("Impossible de charger l'intervention à durée ouverte", error);
-            return null;
+            return cached ? cached.value : null;
+        }
+    }
+
+    function removeEventsForIntervention(calendar, interventionId) {
+        for (const event of calendar.getEvents()) {
+            const props = event.extendedProps || {};
+            if (String(props.orig_id) === String(interventionId)) {
+                event.remove();
+            }
         }
     }
 
@@ -134,10 +161,12 @@
         calendar.__gmaoOpenDurationRefreshing = true;
 
         try {
-            const allEvents = calendar.getEvents();
-            const originals = new Map();
+            calendar.__gmaoOpenDurationSources = calendar.__gmaoOpenDurationSources || new Map();
 
-            for (const event of allEvents) {
+            // Mémorise le style et les informations du bloc initial avant de le
+            // remplacer par les segments dynamiques. La copie reste disponible
+            // aux rafraîchissements suivants, même après suppression du bloc initial.
+            for (const event of calendar.getEvents()) {
                 const props = event.extendedProps || {};
                 const originalId = props.orig_id;
 
@@ -145,49 +174,49 @@
                     continue;
                 }
 
-                if (!originals.has(originalId)) {
-                    originals.set(originalId, event);
+                if (!calendar.__gmaoOpenDurationSources.has(originalId)) {
+                    calendar.__gmaoOpenDurationSources.set(originalId, snapshotEvent(event));
                 }
             }
 
             const now = new Date();
 
-            for (const [interventionId, sourceEvent] of originals.entries()) {
+            for (const [interventionId, source] of calendar.__gmaoOpenDurationSources.entries()) {
                 const details = await loadDetails(calendar, interventionId);
                 if (!details) continue;
 
                 const duration = Number(details.estimated_duration || 0);
                 const status = String(details.status || "").toLowerCase();
+                const isActive = ["planned", "in_progress"].includes(status);
 
-                // Seules les interventions sans durée connue restent ouvertes.
-                if (duration > 0 || !["planned", "in_progress"].includes(status)) {
+                // Une durée positive reste gérée par la segmentation historique.
+                if (duration > 0) {
+                    continue;
+                }
+
+                // Un rapport clôt l'intervention. On ne prolonge plus les segments
+                // déjà affichés ; ils restent figés sur la page courante.
+                if (!isActive) {
                     continue;
                 }
 
                 const start = parseInterventionStart(details);
                 if (!start) continue;
 
-                // Tant que l'heure de départ n'est pas atteinte, on conserve le
-                // bloc de planification d'origine pour matérialiser le rendez-vous.
+                // Avant l'heure de départ, le bloc provisoire généré par le serveur
+                // reste visible pour matérialiser la planification.
                 if (now <= start) {
                     continue;
                 }
 
-                const priority = String(details.priority || sourceEvent.extendedProps.priority || "").toLowerCase();
+                const priority = String(details.priority || source.extendedProps.priority || "").toLowerCase();
                 const critical = priority === "critical";
                 const segments = buildWorkingSegments(start, now, critical);
 
-                // Supprime le bloc provisoire de 60 min généré côté serveur ainsi
-                // que les éventuels segments ouverts d'un rafraîchissement précédent.
-                for (const event of calendar.getEvents()) {
-                    const props = event.extendedProps || {};
-                    if (String(props.orig_id) === String(interventionId)) {
-                        event.remove();
-                    }
-                }
+                removeEventsForIntervention(calendar, interventionId);
 
                 segments.forEach((segment, index) => {
-                    calendar.addEvent(cloneEventData(sourceEvent, segment, index));
+                    calendar.addEvent(cloneEventData(source, segment, index));
                 });
             }
         } finally {
