@@ -27,6 +27,7 @@ def _use_psycopg3_driver() -> None:
 _use_psycopg3_driver()
 
 from app import app, ensure_upload_dirs, init_db
+from machine_dossier import register_machine_dossier
 from manager_features import register_manager_features
 from manager_registration import register_account_role_creation
 from stock_purchasing import register_stock_purchasing
@@ -35,9 +36,8 @@ from stock_supplier_views import register_stock_supplier_views
 from stock_reset import register_stock_reset
 
 
-# Enregistre le profil Manager, les achats/approvisionnements, les vues
-# fournisseurs, la remise à zéro complète du stock et la création des comptes
-# avant le premier appel HTTP.
+# Enregistre les modules complémentaires avant le premier appel HTTP.
+register_machine_dossier(app)
 register_manager_features(app)
 register_account_role_creation(app)
 register_stock_purchasing(app)
@@ -46,8 +46,7 @@ register_stock_supplier_views(app)
 register_stock_reset(app)
 
 # Prépare les dossiers d'upload et crée uniquement les tables manquantes.
-# L'import de stock_purchasing ci-dessus déclare aussi les nouvelles tables
-# d'achats, qui sont donc créées ici sans modifier ni supprimer l'existant.
+# Les modules complémentaires déclarent leurs modèles avant init_db().
 ensure_upload_dirs()
 init_db()
 
