@@ -338,7 +338,6 @@ def create_intervention_report_pdf(data, materials=None):
             ("Rapport créé le:", _format_datetime(data.get("created_at"))),
             ("Auteur du rapport:", data.get("author")),
         ], styles, widths=(45 * mm, 127 * mm)),
-        PageBreak(),
     ])
 
     signature_name = technician if technician != "-" else _safe(data.get("author"))

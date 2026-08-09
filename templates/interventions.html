@@ -101,4 +101,24 @@ window.openIntervention = function(id) {
 };
 </script>
 
+
+<script>
+// STOCK_REPORT_AUTO_OPEN
+document.addEventListener("DOMContentLoaded", async () => {
+    const id = Number(new URLSearchParams(window.location.search).get("report") || 0);
+    if (!id) return;
+    try {
+        const r = await fetch(`/interventions/${id}/details`, {cache: "no-store"});
+        const data = await r.json();
+        document.getElementById("drawerTitle").innerText = "Rapport d'intervention";
+        openReportForm(id, data.scheduled_time || "");
+        document.getElementById("drawer").classList.add("open");
+        history.replaceState({}, "", "/interventions");
+    } catch (e) {
+        console.error(e);
+        alert("Les pièces sont validées, mais le formulaire du rapport n'a pas pu s'ouvrir.");
+    }
+});
+</script>
+
 {% endblock %}

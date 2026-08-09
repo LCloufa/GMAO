@@ -6,6 +6,18 @@
     <meta name="autocomplete" content="off">
     <title>GMAO Pro</title>
 
+    <!-- BEGIN MOBILE_PWA_HEAD -->
+    <meta name="theme-color" content="#2563eb">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="GMAO Pro">
+    <link rel="manifest" href="/static/manifest.webmanifest">
+    <link rel="icon" href="/static/pwa-icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/static/pwa-icon.svg">
+    <link rel="stylesheet" href="/static/mobile-pwa.css">
+    <!-- END MOBILE_PWA_HEAD -->
+
     <link rel="stylesheet" href="/static/style.css">
     <link rel="stylesheet" href="/static/tabs-nav.css">
     <link rel="stylesheet" href="/static/stock.css">
@@ -147,6 +159,56 @@
     {% endif %}
 </header>
 
+
+<!-- BEGIN MOBILE_PWA_NAV -->
+{% if 'user_id' in session %}
+<nav class="mobile-bottom-nav" aria-label="Navigation mobile">
+    <a href="/" class="{% if request.path == '/' %}active{% endif %}">
+        <span class="mobile-nav-icon">🏠</span><span class="mobile-nav-label">Accueil</span>
+    </a>
+    <a href="/declarations" class="{% if request.path.startswith('/declarations') %}active{% endif %}">
+        <span class="mobile-nav-icon">⚠️</span><span class="mobile-nav-label">Pannes</span>
+    </a>
+
+    {% if session.get('role') != 'operator' %}
+    <a href="/interventions" class="{% if request.path.startswith('/interventions') %}active{% endif %}">
+        <span class="mobile-nav-icon">🔧</span><span class="mobile-nav-label">Interv.</span>
+    </a>
+    <a href="/stock" class="{% if request.path.startswith('/stock') %}active{% endif %}">
+        <span class="mobile-nav-icon">📦</span><span class="mobile-nav-label">Stock</span>
+    </a>
+    {% endif %}
+
+    <button type="button" onclick="toggleMobileMore()" aria-label="Plus de navigation">
+        <span class="mobile-nav-icon">☰</span><span class="mobile-nav-label">Plus</span>
+    </button>
+</nav>
+
+<div id="mobileMoreBackdrop" class="mobile-more-backdrop" onclick="closeMobileMore()"></div>
+<aside id="mobileMoreSheet" class="mobile-more-sheet" aria-label="Menu mobile complémentaire">
+    <div class="mobile-more-title">
+        <strong>GMAO Pro</strong>
+        <button type="button" class="mobile-more-close" onclick="closeMobileMore()" aria-label="Fermer">✕</button>
+    </div>
+
+    {% if session.get('role') != 'operator' %}
+    <a href="/equipements" class="{% if request.path.startswith('/equipements') %}active{% endif %}">⚙️ Équipements</a>
+    <a href="/rapports" class="{% if request.path.startswith('/rapports') %}active{% endif %}">📝 Rapports</a>
+    <a href="/techniciens" class="{% if request.path.startswith('/techniciens') %}active{% endif %}">🧰 Techniciens</a>
+    <a href="/clients" class="{% if request.path.startswith('/clients') %}active{% endif %}">👥 Clients</a>
+    {% endif %}
+
+    {% if session.get('role') == 'admin' %}
+    <a href="/users" class="{% if request.path.startswith('/users') %}active{% endif %}">🔐 Utilisateurs</a>
+    {% endif %}
+
+    <button id="pwaInstallButton" class="pwa-install-action" type="button" onclick="installGmaoPwa()" hidden>📲 Installer GMAO Pro</button>
+    <p id="pwaIosInstallHint" class="pwa-ios-hint" hidden>Sur iPhone/iPad : touchez <strong>Partager</strong>, puis <strong>Sur l’écran d’accueil</strong>.</p>
+    <a href="/logout" class="mobile-logout">↪ Déconnexion</a>
+</aside>
+{% endif %}
+<!-- END MOBILE_PWA_NAV -->
+
 <div class="tabs-page-layout">
     <main class="main">
         {% block content %}{% endblock %}
@@ -182,21 +244,37 @@ function openIntervention(id) {
                 : "Ouverte jusqu’au rapport";
             const technicianCode = data.technicien_code || "-";
 
+            // BEGIN GLOBAL_REPORT_BUTTON_GUARD
+            const interventionStatus = String(data.status || "").toLowerCase();
+            const reportAlreadySubmitted = interventionStatus === "completed";
+
+            let interventionActions = "";
+            if (canWriteReport) {
+                if (reportAlreadySubmitted) {
+                    interventionActions = `
+                        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;align-items:center;">
+                            <a class="stock-btn-light" href="/stock/intervention/${data.id}">📦 Consulter les pièces</a>
+                            <span class="badge status-completed">✓ Rapport déjà soumis · pièces verrouillées</span>
+                            <a class="btn-secondary" href="/rapports" style="text-decoration:none;">Voir les rapports</a>
+                        </div>`;
+                } else {
+                    interventionActions = `
+                        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;">
+                            <a class="btn-success" href="/stock/intervention/${data.id}" style="text-decoration:none;text-align:center;width:100%;">
+                                📦 Gérer les pièces avant le rapport
+                            </a>
+                        </div>`;
+                }
+            }
+            // END GLOBAL_REPORT_BUTTON_GUARD
+
             document.getElementById("drawerBody").innerHTML = `
                 <p><strong>Date :</strong> ${data.scheduled_date} ${data.scheduled_time || ""}</p>
                 <p><strong>Durée :</strong> ${durationText}</p>
                 <p><strong>Technicien :</strong> ${technicianCode}</p>
                 <p><strong>Équipement :</strong> ${data.equipement_nom}</p>
                 <p><strong>Description :</strong> ${data.description || "-"}</p>
-
-                ${canWriteReport ? `
-                <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;">
-                    <a class="stock-btn-light" href="/stock/intervention/${data.id}">📦 Gérer les pièces</a>
-                    <button class="btn-success"
-                        onclick="openReportForm(${data.id}, '${data.scheduled_time || ''}')">
-                        Rédiger le rapport
-                    </button>
-                </div>` : ''}
+                ${interventionActions}
             `;
 
             document.getElementById("drawer").classList.add("open");
@@ -281,6 +359,11 @@ function openInterventionForm() {
 }
 </script>
 <script src="/static/open-duration-interventions.js"></script>
+
+
+<!-- BEGIN MOBILE_PWA_SCRIPT -->
+<script src="/static/mobile-pwa.js"></script>
+<!-- END MOBILE_PWA_SCRIPT -->
 
 </body>
 </html>

@@ -37,13 +37,21 @@
       </div>
     </div>
 
+    <!-- BEGIN MOBILE_CAMERA_UPLOAD -->
     <div style="margin-top:10px;">
-      <label class="upload-btn">
-        📷 Ajouter des photos (optionnel)
-        <input type="file" name="photos" multiple accept="image/*" hidden>
-      </label>
-      <div class="file-name">Vous pouvez sélectionner plusieurs images</div>
+      <div class="mobile-camera-actions">
+        <label class="upload-btn">
+          📷 Prendre une photo
+          <input type="file" name="photos" accept="image/*" capture="environment" hidden>
+        </label>
+        <label class="upload-btn">
+          🖼️ Choisir des images
+          <input type="file" name="photos" multiple accept="image/*" hidden>
+        </label>
+      </div>
+      <div class="file-name">Photos optionnelles · appareil photo ou galerie</div>
     </div>
+    <!-- END MOBILE_CAMERA_UPLOAD -->
 
     <div class="actions-row" style="margin-top:25px; justify-content:flex-end;">
       <a href="/declarations" style="text-decoration:none; color:#64748b; margin-right:20px;">Annuler</a>

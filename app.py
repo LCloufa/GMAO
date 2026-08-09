@@ -3,16 +3,41 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask import send_file
 from openpyxl import load_workbook
 from tempfile import NamedTemporaryFile
-import sqlite3
+from dotenv import load_dotenv
+from flask_migrate import Migrate
+from models import db
+from database_compat import get_db_connection
+from intervention_report_pdf import create_intervention_report_pdf
+from declaration_pdf import create_declaration_pdf
+from excel_export import create_gmao_excel_export
+from maintenance_metrics import calculate_availability_metrics
 import os
 from werkzeug.utils import secure_filename
 import csv
 from flask import Response
+load_dotenv()
+
 app = Flask(__name__)
-app.secret_key = "cle_super_secrete_change_moi"
-ADMIN_ACCESS_KEY = "GMAO-2026-SECURE"
-OPERATOR_ACCESS_KEY = "GMAO-OP-2026"
-TECH_ACCESS_KEY = "GMAO-TECH-2026"
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL est absent du fichier .env")
+
+app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+db.init_app(app)
+migrate = Migrate(app, db)
+
+app.secret_key = os.getenv("SECRET_KEY")
+ADMIN_ACCESS_KEY = os.getenv("ADMIN_ACCESS_KEY")
+OPERATOR_ACCESS_KEY = os.getenv("OPERATOR_ACCESS_KEY")
+TECH_ACCESS_KEY = os.getenv("TECH_ACCESS_KEY")
+
+if not all((app.secret_key, ADMIN_ACCESS_KEY, OPERATOR_ACCESS_KEY, TECH_ACCESS_KEY)):
+    raise RuntimeError(
+        "SECRET_KEY, ADMIN_ACCESS_KEY, OPERATOR_ACCESS_KEY et TECH_ACCESS_KEY "
+        "doivent être définies dans .env"
+    )
 
 def ensure_upload_dirs():
     os.makedirs("static/uploads/pannes", exist_ok=True)
@@ -57,6 +82,163 @@ def role_required(*roles):
         return wrapped
     return decorator
 
+
+
+# BEGIN USER_ROLE_SESSION_SYNC
+@app.before_request
+def sync_authenticated_user_role():
+    """Resynchronise le rôle de la session avec PostgreSQL.
+
+    Ainsi, une promotion ou rétrogradation décidée par un administrateur prend
+    effet dès la requête suivante, y compris pour un utilisateur déjà connecté.
+    """
+    if "user_id" not in session or request.path.startswith("/static/"):
+        return None
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT role FROM users WHERE id = ?", (session.get("user_id"),))
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        session.clear()
+        return redirect("/login")
+
+    database_role = str(row[0] or "").strip().lower()
+    if database_role and session.get("role") != database_role:
+        session["role"] = database_role
+
+    return None
+# END USER_ROLE_SESSION_SYNC
+
+# BEGIN OPERATOR_ACCESS_GUARD
+@app.before_request
+def restrict_operator_access():
+    """Limite un opérateur au dashboard et aux déclarations de panne.
+
+    Les administrateurs et techniciens conservent leurs accès actuels.
+    Les routes de traitement d'une déclaration restent protégées par leurs
+    décorateurs role_required existants.
+    """
+    role = str(session.get("role") or "").strip().lower()
+    if role != "operator":
+        return None
+
+    path = request.path or "/"
+
+    allowed = (
+        path == "/"
+        or path.startswith("/declarations")
+        or path.startswith("/static/")
+        or path in {"/login", "/logout"}
+    )
+
+    if allowed:
+        return None
+
+    return "Accès refusé : le profil opérateur est limité au tableau de bord et aux déclarations de panne.", 403
+# END OPERATOR_ACCESS_GUARD
+
+
+# BEGIN TECHNICIAN_ONBOARDING
+@app.before_request
+def require_technician_profile():
+    """Force un technicien à compléter son profil avant d'accéder à la GMAO."""
+    role = str(session.get("role") or "").strip().lower()
+    if role != "technician":
+        return None
+
+    path = request.path or "/"
+    if path.startswith("/static/") or path in {"/logout", "/mon-profil-technicien"}:
+        return None
+
+    user_id = session.get("user_id")
+    if not user_id:
+        return redirect("/login")
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT technicien_id FROM technicien_user_links WHERE user_id = ? LIMIT 1",
+        (user_id,),
+    )
+    profile = cursor.fetchone()
+    conn.close()
+
+    if profile:
+        return None
+
+    return redirect("/mon-profil-technicien")
+
+
+@app.route("/mon-profil-technicien", methods=["GET", "POST"])
+@login_required
+def technicien_onboarding():
+    role = str(session.get("role") or "").strip().lower()
+    if role != "technician":
+        return redirect("/")
+
+    user_id = session.get("user_id")
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT technicien_id FROM technicien_user_links WHERE user_id = ? LIMIT 1",
+        (user_id,),
+    )
+    existing = cursor.fetchone()
+
+    if existing:
+        conn.close()
+        return redirect("/")
+
+    if request.method == "POST":
+        nom = request.form.get("nom", "").strip()
+        prenom = request.form.get("prenom", "").strip()
+        code = request.form.get("code", "").strip()
+        specialite = request.form.get("specialite", "").strip()
+        statut = request.form.get("statut", "Actif").strip()
+
+        if not nom or not prenom or not code:
+            conn.close()
+            return "Nom, prénom et code sont obligatoires.", 400
+
+        if statut not in {"Actif", "Inactif"}:
+            conn.close()
+            return "Statut invalide.", 400
+
+        cursor.execute(
+            """
+            INSERT INTO techniciens
+            (nom, prenom, code, specialite, statut)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (nom, prenom, code, specialite or None, statut),
+        )
+        technicien_id = cursor.lastrowid
+
+        if not technicien_id:
+            conn.rollback()
+            conn.close()
+            return "Impossible de créer le profil technicien.", 500
+
+        cursor.execute(
+            """
+            INSERT INTO technicien_user_links (user_id, technicien_id)
+            VALUES (?, ?)
+            """,
+            (user_id, technicien_id),
+        )
+
+        conn.commit()
+        conn.close()
+        return redirect("/")
+
+    conn.close()
+    return render_template("technicien_onboarding.html")
+# END TECHNICIAN_ONBOARDING
+
 RYTHME_OPTIONS = ["1x8", "2x8", "3x8", "24/7"]
 RYTHME_MINUTES_PER_DAY = {
     "1x8": 8 * 60,
@@ -80,142 +262,9 @@ def compute_disponibilite(rate_minutes_per_day, equipment_count, downtime_minute
 # ==========================
 
 def init_db():
-    conn = sqlite3.connect("database.db")
-    cursor = conn.cursor()
-
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        role TEXT DEFAULT 'user'
-    )
-    """)
-
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS clients (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nom TEXT NOT NULL,
-        email TEXT,
-        telephone TEXT,
-        site_web TEXT,
-        rythme_horaire TEXT DEFAULT '1x8'
-    )
-    """)
-
-    cursor.execute("PRAGMA table_info(clients)")
-    existing_columns = [row[1] for row in cursor.fetchall()]
-    if "rythme_horaire" not in existing_columns:
-        cursor.execute("ALTER TABLE clients ADD COLUMN rythme_horaire TEXT DEFAULT '1x8'")
-
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS techniciens (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nom TEXT NOT NULL,
-        prenom TEXT NOT NULL,
-        code TEXT NOT NULL,
-        email TEXT,
-        telephone TEXT,
-        specialite TEXT,
-        statut TEXT DEFAULT 'Actif'
-    )
-    """)
-
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS equipements (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nom TEXT NOT NULL,
-        code TEXT,
-        type TEXT,
-        statut TEXT DEFAULT 'Opérationnel',
-        emplacement TEXT,
-        client_id INTEGER,
-        fabricant TEXT,
-        modele TEXT,
-        numero_serie TEXT,
-        date_installation TEXT,
-        photo TEXT,
-        FOREIGN KEY (client_id) REFERENCES clients(id)
-    )
-    """)
-
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS equipement_documents (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        equipement_id INTEGER,
-        filename TEXT,
-        filepath TEXT,
-        FOREIGN KEY (equipement_id) REFERENCES equipements(id)
-    )
-    """)
-
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS interventions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        equipment_id INTEGER NOT NULL,
-        routine_id TEXT,
-        type TEXT CHECK(type IN ('preventive','corrective','predictive','emergency')) NOT NULL,
-        priority TEXT CHECK(priority IN ('low','medium','high','critical')) DEFAULT 'medium',
-        status TEXT CHECK(status IN ('planned','in_progress','completed','cancelled','postponed')) DEFAULT 'planned',
-        scheduled_date TEXT NOT NULL,
-        scheduled_time TEXT,
-        assigned_to INTEGER,
-        estimated_duration INTEGER,
-        description TEXT,
-        completion_date TEXT,
-        FOREIGN KEY (equipment_id) REFERENCES equipements(id),
-        FOREIGN KEY (assigned_to) REFERENCES techniciens(id)
-    )
-    """)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS declarations_panne (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        equipment_id INTEGER NOT NULL,
-        declared_by_user_id INTEGER,     -- opérateur (users.id)
-        declared_by_name TEXT,           -- optionnel: nom saisi
-        title TEXT NOT NULL,
-        description TEXT NOT NULL,
-        urgency TEXT CHECK(urgency IN ('low','medium','high','critical')) DEFAULT 'medium',
-        location TEXT,
-        status TEXT CHECK(status IN ('pending','in_progress','resolved','rejected')) DEFAULT 'pending',
-        created_at TEXT DEFAULT (datetime('now')),
-        updated_at TEXT,
-        intervention_id INTEGER,         -- si une intervention a été créée depuis cette déclaration
-        FOREIGN KEY (equipment_id) REFERENCES equipements(id),
-        FOREIGN KEY (declared_by_user_id) REFERENCES users(id),
-        FOREIGN KEY (intervention_id) REFERENCES interventions(id)
-    )
-    """)
-
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS declaration_photos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        declaration_id INTEGER NOT NULL,
-        filepath TEXT NOT NULL,
-        FOREIGN KEY (declaration_id) REFERENCES declarations_panne(id)
-    )
-    """)
-
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS rapports_intervention (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        intervention_id INTEGER NOT NULL,
-        travaux TEXT NOT NULL,
-        heure_debut TEXT,
-        heure_fin TEXT NOT NULL,
-        observations TEXT,
-        etat TEXT CHECK(etat IN ('Opérationnel','Nécessite un suivi','Toujours en panne')) NOT NULL,
-        recommandations TEXT,
-        created_by_user_id INTEGER,
-        created_at TEXT DEFAULT (datetime('now')),
-        updated_at TEXT,
-        FOREIGN KEY (intervention_id) REFERENCES interventions(id),
-        FOREIGN KEY (created_by_user_id) REFERENCES users(id)
-    )
-    """)
-    conn.commit()
-    conn.close()
+    """Crée les tables manquantes dans PostgreSQL sans supprimer les données."""
+    with app.app_context():
+        db.create_all()
 
 
 def sync_equipement_statut(conn, equipement_id):
@@ -292,7 +341,7 @@ def register():
         elif access_key == OPERATOR_ACCESS_KEY:
             role = "operator"
 
-        conn = sqlite3.connect("database.db")
+        conn = get_db_connection()
         cursor = conn.cursor()
 
         try:
@@ -315,8 +364,8 @@ def login():
         username = request.form["username"]
         password = request.form["password"]
 
-        conn = sqlite3.connect("database.db")
-        conn.row_factory = sqlite3.Row
+        conn = get_db_connection()
+        conn.row_factory = dict
         cursor = conn.cursor()
 
         cursor.execute("SELECT * FROM users WHERE username=?", (username,))
@@ -350,7 +399,7 @@ def users():
         return "Accès refusé"
 
 
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("SELECT id, username, role FROM users")
@@ -362,12 +411,54 @@ def users():
 @app.route("/debug-users")
 @admin_required
 def debug_users():
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("SELECT id, username, role FROM users")
     users = cur.fetchall()
     conn.close()
     return str(users)
+
+# BEGIN USER_ROLE_MANAGEMENT
+@app.route("/users/<int:id>/role", methods=["POST"])
+@admin_required
+def update_user_role(id):
+    """Permet à un admin de basculer un compte non-admin entre opérateur et technicien."""
+    new_role = str(request.form.get("role") or "").strip().lower()
+
+    # L'interface ne propose que ces deux valeurs, et le backend les impose aussi.
+    if new_role not in ("operator", "technician"):
+        return "Rôle invalide. Seuls Opérateur et Technicien sont autorisés.", 400
+
+    # Un administrateur ne peut pas modifier son propre rôle par cette fonction.
+    if id == session.get("user_id"):
+        return "Le rôle de votre propre compte administrateur est protégé.", 403
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, username, role FROM users WHERE id = ?", (id,))
+    user = cursor.fetchone()
+
+    if not user:
+        conn.close()
+        return "Utilisateur introuvable", 404
+
+    current_role = str(user[2] or "").strip().lower()
+
+    # Aucun compte administrateur ne peut être rétrogradé depuis cette interface.
+    if current_role == "admin":
+        conn.close()
+        return "Le rôle d'un administrateur est protégé.", 403
+
+    cursor.execute(
+        "UPDATE users SET role = ? WHERE id = ?",
+        (new_role, id),
+    )
+    conn.commit()
+    conn.close()
+
+    return redirect("/users")
+# END USER_ROLE_MANAGEMENT
+
 # ==========================
 # Suppression compte
 # ==========================
@@ -379,7 +470,7 @@ def delete_user(id):
     if session.get("user_id") == id:
         return "Vous ne pouvez pas supprimer votre propre compte"
 
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     # Compter les admins
@@ -399,6 +490,989 @@ def delete_user(id):
     conn.close()
 
     return redirect("/users")
+
+
+# BEGIN SELECTIVE_DATABASE_RESET
+@app.route("/admin/reset-data", methods=["POST"])
+@login_required
+@admin_required
+def reset_selected_data():
+    """Réinitialise uniquement la catégorie choisie par un administrateur.
+
+    Les suppressions sont réalisées dans un ordre compatible avec les clés
+    étrangères PostgreSQL. Les utilisateurs, clients et techniciens ne sont
+    jamais supprimés par cette fonction.
+    """
+    target = str(request.form.get("reset_target") or "").strip().lower()
+    allowed_targets = {"equipements", "interventions", "rapports", "declarations"}
+
+    if target not in allowed_targets:
+        return "Choix de réinitialisation invalide.", 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    affected_equipment_ids = set()
+
+    try:
+        if target == "rapports":
+            cursor.execute(
+                """
+                SELECT DISTINCT i.equipment_id
+                FROM rapports_intervention r
+                JOIN interventions i ON i.id = r.intervention_id
+                WHERE i.equipment_id IS NOT NULL
+                """
+            )
+            affected_equipment_ids = {int(row[0]) for row in cursor.fetchall() if row[0] is not None}
+
+            # Un rapport clôt une intervention dans la logique GMAO. Si tous
+            # les rapports sont effacés, les interventions concernées sont
+            # rouvertes afin de ne pas conserver un état "completed" sans
+            # document de clôture.
+            cursor.execute(
+                """
+                UPDATE interventions
+                SET status = 'in_progress', completion_date = NULL
+                WHERE id IN (
+                    SELECT DISTINCT intervention_id
+                    FROM rapports_intervention
+                )
+                """
+            )
+            cursor.execute("DELETE FROM rapports_intervention")
+
+        elif target == "declarations":
+            cursor.execute(
+                "SELECT DISTINCT equipment_id FROM declarations_panne WHERE equipment_id IS NOT NULL"
+            )
+            affected_equipment_ids = {int(row[0]) for row in cursor.fetchall() if row[0] is not None}
+
+            cursor.execute("DELETE FROM declaration_photos")
+            cursor.execute("DELETE FROM declarations_panne")
+
+        elif target == "interventions":
+            cursor.execute(
+                "SELECT DISTINCT equipment_id FROM interventions WHERE equipment_id IS NOT NULL"
+            )
+            affected_equipment_ids = {int(row[0]) for row in cursor.fetchall() if row[0] is not None}
+
+            # Les déclarations restent conservées. Elles sont simplement
+            # détachées de l'intervention supprimée et remises en attente si
+            # elles avaient été avancées par cette intervention.
+            cursor.execute(
+                """
+                UPDATE declarations_panne
+                SET intervention_id = NULL,
+                    status = CASE
+                        WHEN status IN ('in_progress', 'resolved') THEN 'pending'
+                        ELSE status
+                    END,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE intervention_id IS NOT NULL
+                """
+            )
+
+            cursor.execute("DELETE FROM rapports_intervention")
+            cursor.execute("DELETE FROM interventions")
+
+        elif target == "equipements":
+            # Une intervention ou une déclaration ne peut pas exister sans
+            # équipement dans le schéma actuel. La remise à zéro des
+            # équipements efface donc aussi leurs données métiers liées.
+            cursor.execute("DELETE FROM declaration_photos")
+            cursor.execute("DELETE FROM rapports_intervention")
+            cursor.execute("DELETE FROM declarations_panne")
+            cursor.execute("DELETE FROM interventions")
+            cursor.execute("DELETE FROM equipement_documents")
+            cursor.execute("DELETE FROM equipements")
+
+        if target != "equipements":
+            for equipment_id in affected_equipment_ids:
+                sync_equipement_statut(conn, equipment_id)
+
+        conn.commit()
+    except Exception as exc:
+        conn.rollback()
+        conn.close()
+        print(f"Erreur réinitialisation {target}: {exc}")
+        return "La réinitialisation a échoué. Aucune modification n'a été validée.", 500
+
+    conn.close()
+    return redirect(f"/?reset_done={target}")
+# END SELECTIVE_DATABASE_RESET
+
+
+# BEGIN STOCK_MODULE
+from decimal import Decimal, InvalidOperation
+
+
+def _stock_decimal(value, default="0"):
+    try:
+        raw = str(value if value not in (None, "") else default).strip().replace(",", ".")
+        return Decimal(raw)
+    except (InvalidOperation, ValueError, TypeError):
+        return Decimal(str(default))
+
+
+def _stock_article_rows(conn):
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT
+            a.id,
+            a.reference,
+            a.designation,
+            a.reference_fabricant,
+            a.fabricant,
+            a.unite,
+            a.stock_min,
+            a.stock_max,
+            a.prix_unitaire,
+            a.actif,
+            a.notes,
+            c.nom AS categorie,
+            l.nom AS emplacement,
+            COALESCE(SUM(m.quantite_delta), 0) AS stock_physique,
+            COALESCE((
+                SELECT SUM(r.quantite - r.quantite_consommee)
+                FROM stock_reservations r
+                WHERE r.article_id = a.id
+                  AND r.statut = 'reserved'
+            ), 0) AS reserve
+        FROM stock_articles a
+        LEFT JOIN stock_categories c ON c.id = a.categorie_id
+        LEFT JOIN stock_locations l ON l.id = a.emplacement_id
+        LEFT JOIN stock_movements m ON m.article_id = a.id
+        GROUP BY
+            a.id, a.reference, a.designation, a.reference_fabricant,
+            a.fabricant, a.unite, a.stock_min, a.stock_max,
+            a.prix_unitaire, a.actif, a.notes, c.nom, l.nom
+        ORDER BY a.reference ASC
+        """
+    )
+
+    rows = []
+    for row in cursor.fetchall():
+        physique = _stock_decimal(row[13])
+        reserve = _stock_decimal(row[14])
+        disponible = physique - reserve
+        stock_min = _stock_decimal(row[6])
+        prix = _stock_decimal(row[8])
+        if physique <= 0:
+            etat = "rupture"
+        elif disponible <= stock_min:
+            etat = "alerte"
+        else:
+            etat = "ok"
+        rows.append({
+            "id": row[0],
+            "reference": row[1],
+            "designation": row[2],
+            "reference_fabricant": row[3],
+            "fabricant": row[4],
+            "unite": row[5],
+            "stock_min": float(stock_min),
+            "stock_max": float(_stock_decimal(row[7])) if row[7] is not None else None,
+            "prix_unitaire": float(prix),
+            "actif": bool(row[9]),
+            "notes": row[10],
+            "categorie": row[11] or "-",
+            "emplacement": row[12] or "-",
+            "stock_physique": float(physique),
+            "reserve": float(reserve),
+            "disponible": float(disponible),
+            "valeur": float(physique * prix),
+            "etat": etat,
+        })
+    return rows
+
+
+def _stock_get_article_state(conn, article_id):
+    for article in _stock_article_rows(conn):
+        if int(article["id"]) == int(article_id):
+            return article
+    return None
+
+
+def _stock_can_manage_intervention(conn, intervention_id):
+    if str(session.get("role") or "").lower() == "admin":
+        return True
+
+    if str(session.get("role") or "").lower() != "technician":
+        return False
+
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT 1
+        FROM interventions i
+        JOIN technicien_user_links tul ON tul.technicien_id = i.assigned_to
+        WHERE i.id = ? AND tul.user_id = ?
+        LIMIT 1
+        """,
+        (intervention_id, session.get("user_id")),
+    )
+    return cursor.fetchone() is not None
+
+
+@app.route("/stock")
+@login_required
+@role_required("admin", "technician")
+def stock_dashboard():
+    section = request.args.get("section", "articles").strip().lower()
+    if section not in {"articles", "mouvements", "inventaire", "fournisseurs", "alertes"}:
+        section = "articles"
+
+    recherche = request.args.get("q", "").strip().lower()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    articles_all = _stock_article_rows(conn)
+    articles = articles_all
+    if recherche:
+        articles = [
+            a for a in articles_all
+            if recherche in str(a["reference"]).lower()
+            or recherche in str(a["designation"]).lower()
+            or recherche in str(a["fabricant"] or "").lower()
+            or recherche in str(a["categorie"] or "").lower()
+            or recherche in str(a["emplacement"] or "").lower()
+        ]
+
+    cursor.execute("SELECT id, nom, description FROM stock_categories ORDER BY nom ASC")
+    categories = cursor.fetchall()
+    cursor.execute("SELECT id, code, nom, parent_id, description FROM stock_locations ORDER BY nom ASC")
+    emplacements = cursor.fetchall()
+    cursor.execute(
+        "SELECT id, nom, adresse, siret, contact_nom, contact_prenom, telephone, email, site_web, notes, actif FROM stock_suppliers ORDER BY nom ASC"
+    )
+    fournisseurs = cursor.fetchall()
+
+    cursor.execute(
+        """
+        SELECT m.id, m.created_at, a.reference, a.designation,
+               m.type_mouvement, m.quantite_delta, m.prix_unitaire,
+               m.motif, COALESCE(u.username, '-'),
+               m.intervention_id, COALESCE(i.title, '-')
+        FROM stock_movements m
+        JOIN stock_articles a ON a.id = m.article_id
+        LEFT JOIN users u ON u.id = m.created_by_user_id
+        LEFT JOIN interventions i ON i.id = m.intervention_id
+        ORDER BY m.created_at DESC, m.id DESC
+        LIMIT 250
+        """
+    )
+    mouvements = cursor.fetchall()
+
+    cursor.execute(
+        """
+        SELECT i.id, i.title, i.scheduled_date, i.scheduled_time,
+               e.nom, COALESCE(t.code, '-')
+        FROM interventions i
+        LEFT JOIN equipements e ON e.id = i.equipment_id
+        LEFT JOIN techniciens t ON t.id = i.assigned_to
+        WHERE i.status IN ('planned', 'in_progress')
+        ORDER BY i.scheduled_date ASC, i.scheduled_time ASC
+        """
+    )
+    interventions_stock = cursor.fetchall()
+
+    alertes = [a for a in articles_all if a["actif"] and a["etat"] in {"alerte", "rupture"}]
+    valeur_totale = round(sum(a["valeur"] for a in articles_all if a["actif"]), 2)
+    nb_references = sum(1 for a in articles_all if a["actif"])
+    nb_ruptures = sum(1 for a in alertes if a["etat"] == "rupture")
+
+    if section == "fournisseurs":
+        conn.close()
+        return render_template(
+            "stock_fournisseurs.html",
+            fournisseurs=fournisseurs,
+            stock_kpis={
+                "references": nb_references,
+                "valeur": valeur_totale,
+                "alertes": len(alertes),
+                "ruptures": nb_ruptures,
+            },
+        )
+
+    conn.close()
+    return render_template(
+        "stock.html",
+        section=section,
+        recherche=recherche,
+        articles=articles,
+        articles_all=articles_all,
+        categories=categories,
+        emplacements=emplacements,
+        fournisseurs=fournisseurs,
+        mouvements=mouvements,
+        interventions_stock=interventions_stock,
+        alertes=alertes,
+        stock_kpis={
+            "references": nb_references,
+            "valeur": valeur_totale,
+            "alertes": len(alertes),
+            "ruptures": nb_ruptures,
+        },
+    )
+
+
+@app.route("/stock/categories/add", methods=["POST"])
+@login_required
+@admin_required
+def stock_add_category():
+    nom = request.form.get("nom", "").strip()
+    description = request.form.get("description", "").strip() or None
+    if not nom:
+        return "Le nom de la catégorie est obligatoire.", 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM stock_categories WHERE LOWER(nom) = LOWER(?)", (nom,))
+    if cursor.fetchone():
+        conn.close()
+        return redirect("/stock?section=articles&error=category_exists")
+    cursor.execute("INSERT INTO stock_categories (nom, description) VALUES (?, ?)", (nom, description))
+    conn.commit()
+    conn.close()
+    return redirect("/stock?section=articles")
+
+
+@app.route("/stock/locations/add", methods=["POST"])
+@login_required
+@admin_required
+def stock_add_location():
+    code = request.form.get("code", "").strip() or None
+    nom = request.form.get("nom", "").strip()
+    parent_id = request.form.get("parent_id") or None
+    description = request.form.get("description", "").strip() or None
+    if not nom:
+        return "Le nom de l'emplacement est obligatoire.", 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO stock_locations (code, nom, parent_id, description) VALUES (?, ?, ?, ?)",
+        (code, nom, parent_id, description),
+    )
+    conn.commit()
+    conn.close()
+    return redirect("/stock?section=articles")
+
+
+@app.route("/stock/fournisseurs/add", methods=["POST"])
+@login_required
+@admin_required
+def stock_add_supplier():
+    nom = request.form.get("nom", "").strip()
+    if not nom:
+        return "Le nom de la société est obligatoire.", 400
+
+    siret_raw = request.form.get("siret", "").strip()
+    siret = siret_raw.replace(" ", "") or None
+    if siret and (not siret.isdigit() or len(siret) != 14):
+        return redirect("/stock?section=fournisseurs&error=siret")
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    if siret:
+        cursor.execute("SELECT id FROM stock_suppliers WHERE siret = ? LIMIT 1", (siret,))
+        if cursor.fetchone():
+            conn.close()
+            return redirect("/stock?section=fournisseurs&error=siret_exists")
+
+    cursor.execute(
+        """
+        INSERT INTO stock_suppliers
+        (nom, adresse, siret, contact_nom, contact_prenom,
+         telephone, email, site_web, actif, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, TRUE, ?)
+        """,
+        (
+            nom,
+            request.form.get("adresse", "").strip() or None,
+            siret,
+            request.form.get("contact_nom", "").strip() or None,
+            request.form.get("contact_prenom", "").strip() or None,
+            request.form.get("telephone", "").strip() or None,
+            request.form.get("email", "").strip() or None,
+            request.form.get("site_web", "").strip() or None,
+            request.form.get("notes", "").strip() or None,
+        ),
+    )
+    conn.commit()
+    conn.close()
+    return redirect("/stock?section=fournisseurs")
+
+@app.route("/stock/articles/add", methods=["POST"])
+@login_required
+@admin_required
+def stock_add_article():
+    reference = request.form.get("reference", "").strip()
+    designation = request.form.get("designation", "").strip()
+    if not reference or not designation:
+        return "Référence et désignation sont obligatoires.", 400
+
+    stock_min = max(Decimal("0"), _stock_decimal(request.form.get("stock_min")))
+    stock_max_raw = request.form.get("stock_max", "").strip()
+    stock_max = _stock_decimal(stock_max_raw) if stock_max_raw else None
+    prix = max(Decimal("0"), _stock_decimal(request.form.get("prix_unitaire")))
+    stock_initial = max(Decimal("0"), _stock_decimal(request.form.get("stock_initial")))
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM stock_articles WHERE LOWER(reference) = LOWER(?)", (reference,))
+    if cursor.fetchone():
+        conn.close()
+        return redirect("/stock?section=articles&error=reference_exists")
+
+    cursor.execute(
+        """
+        INSERT INTO stock_articles
+        (reference, designation, reference_fabricant, fabricant, unite,
+         categorie_id, emplacement_id, stock_min, stock_max,
+         prix_unitaire, actif, notes, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE, ?, CURRENT_TIMESTAMP)
+        """,
+        (
+            reference,
+            designation,
+            request.form.get("reference_fabricant", "").strip() or None,
+            request.form.get("fabricant", "").strip() or None,
+            request.form.get("unite", "pièce").strip() or "pièce",
+            request.form.get("categorie_id") or None,
+            request.form.get("emplacement_id") or None,
+            stock_min,
+            stock_max,
+            prix,
+            request.form.get("notes", "").strip() or None,
+        ),
+    )
+    article_id = cursor.lastrowid
+    if not article_id:
+        cursor.execute("SELECT id FROM stock_articles WHERE reference = ?", (reference,))
+        article_id = cursor.fetchone()[0]
+
+    if stock_initial > 0:
+        cursor.execute(
+            """
+            INSERT INTO stock_movements
+            (article_id, type_mouvement, quantite_delta, prix_unitaire,
+             motif, created_by_user_id, created_at)
+            VALUES (?, 'inventaire', ?, ?, 'Stock initial', ?, CURRENT_TIMESTAMP)
+            """,
+            (article_id, stock_initial, prix, session.get("user_id")),
+        )
+
+    conn.commit()
+    conn.close()
+    return redirect(f"/stock/articles/{article_id}")
+
+
+@app.route("/stock/articles/<int:article_id>")
+@login_required
+@role_required("admin", "technician")
+def stock_article_detail(article_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    article = _stock_get_article_state(conn, article_id)
+    if not article:
+        conn.close()
+        return "Article introuvable", 404
+
+    cursor.execute("SELECT id, nom, description FROM stock_categories ORDER BY nom ASC")
+    categories = cursor.fetchall()
+    cursor.execute("SELECT id, code, nom, parent_id, description FROM stock_locations ORDER BY nom ASC")
+    emplacements = cursor.fetchall()
+    cursor.execute("SELECT id, nom FROM stock_suppliers WHERE actif = TRUE ORDER BY nom ASC")
+    fournisseurs = cursor.fetchall()
+    cursor.execute(
+        """
+        SELECT ass.id, s.nom, ass.reference_fournisseur, ass.prix,
+               ass.delai_jours, ass.prefere
+        FROM stock_article_suppliers ass
+        JOIN stock_suppliers s ON s.id = ass.supplier_id
+        WHERE ass.article_id = ?
+        ORDER BY ass.prefere DESC, s.nom ASC
+        """,
+        (article_id,),
+    )
+    article_fournisseurs = cursor.fetchall()
+    cursor.execute(
+        """
+        SELECT m.created_at, m.type_mouvement, m.quantite_delta,
+               m.prix_unitaire, m.motif, COALESCE(u.username, '-'),
+               m.intervention_id, COALESCE(i.title, '-')
+        FROM stock_movements m
+        LEFT JOIN users u ON u.id = m.created_by_user_id
+        LEFT JOIN interventions i ON i.id = m.intervention_id
+        WHERE m.article_id = ?
+        ORDER BY m.created_at DESC, m.id DESC
+        LIMIT 150
+        """,
+        (article_id,),
+    )
+    historique = cursor.fetchall()
+    conn.close()
+    return render_template(
+        "stock_article.html",
+        article=article,
+        categories=categories,
+        emplacements=emplacements,
+        fournisseurs=fournisseurs,
+        article_fournisseurs=article_fournisseurs,
+        historique=historique,
+    )
+
+
+@app.route("/stock/articles/<int:article_id>/update", methods=["POST"])
+@login_required
+@admin_required
+def stock_update_article(article_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        UPDATE stock_articles
+        SET designation = ?, reference_fabricant = ?, fabricant = ?, unite = ?,
+            categorie_id = ?, emplacement_id = ?, stock_min = ?, stock_max = ?,
+            prix_unitaire = ?, notes = ?
+        WHERE id = ?
+        """,
+        (
+            request.form.get("designation", "").strip(),
+            request.form.get("reference_fabricant", "").strip() or None,
+            request.form.get("fabricant", "").strip() or None,
+            request.form.get("unite", "pièce").strip() or "pièce",
+            request.form.get("categorie_id") or None,
+            request.form.get("emplacement_id") or None,
+            max(Decimal("0"), _stock_decimal(request.form.get("stock_min"))),
+            _stock_decimal(request.form.get("stock_max")) if request.form.get("stock_max", "").strip() else None,
+            max(Decimal("0"), _stock_decimal(request.form.get("prix_unitaire"))),
+            request.form.get("notes", "").strip() or None,
+            article_id,
+        ),
+    )
+    conn.commit()
+    conn.close()
+    return redirect(f"/stock/articles/{article_id}")
+
+
+@app.route("/stock/articles/<int:article_id>/toggle", methods=["POST"])
+@login_required
+@admin_required
+def stock_toggle_article(article_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE stock_articles SET actif = NOT actif WHERE id = ?", (article_id,))
+    conn.commit()
+    conn.close()
+    return redirect(f"/stock/articles/{article_id}")
+
+
+@app.route("/stock/articles/<int:article_id>/supplier", methods=["POST"])
+@login_required
+@admin_required
+def stock_link_supplier(article_id):
+    supplier_id = request.form.get("supplier_id")
+    if not supplier_id:
+        return "Fournisseur obligatoire", 400
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT id FROM stock_article_suppliers WHERE article_id = ? AND supplier_id = ?",
+        (article_id, supplier_id),
+    )
+    existing = cursor.fetchone()
+    params = (
+        request.form.get("reference_fournisseur", "").strip() or None,
+        _stock_decimal(request.form.get("prix")) if request.form.get("prix", "").strip() else None,
+        int(request.form.get("delai_jours") or 0) or None,
+        request.form.get("prefere") == "1",
+    )
+    if existing:
+        cursor.execute(
+            """
+            UPDATE stock_article_suppliers
+            SET reference_fournisseur = ?, prix = ?, delai_jours = ?, prefere = ?
+            WHERE id = ?
+            """,
+            (*params, existing[0]),
+        )
+    else:
+        cursor.execute(
+            """
+            INSERT INTO stock_article_suppliers
+            (article_id, supplier_id, reference_fournisseur, prix, delai_jours, prefere)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (article_id, supplier_id, *params),
+        )
+    conn.commit()
+    conn.close()
+    return redirect(f"/stock/articles/{article_id}")
+
+
+@app.route("/stock/mouvements/add", methods=["POST"])
+@login_required
+@role_required("admin", "technician")
+def stock_add_movement():
+    article_id = request.form.get("article_id")
+    mouvement = request.form.get("type_mouvement", "").strip().lower()
+    quantite = abs(_stock_decimal(request.form.get("quantite")))
+    intervention_id = request.form.get("intervention_id") or None
+    if not article_id or quantite <= 0:
+        return "Article et quantité positive obligatoires.", 400
+
+    role = str(session.get("role") or "").lower()
+    if role == "admin":
+        allowed = {"entree", "sortie", "correction", "retour"}
+    else:
+        allowed = {"sortie", "retour"}
+    if mouvement not in allowed:
+        return "Type de mouvement non autorisé.", 403
+
+    if mouvement in {"sortie"}:
+        delta = -quantite
+    elif mouvement in {"entree", "retour"}:
+        delta = quantite
+    else:
+        signe = request.form.get("signe", "+")
+        delta = quantite if signe != "-" else -quantite
+
+    conn = get_db_connection()
+    article = _stock_get_article_state(conn, article_id)
+    if not article:
+        conn.close()
+        return "Article introuvable", 404
+    if delta < 0 and Decimal(str(article["stock_physique"])) + delta < 0:
+        conn.close()
+        return redirect("/stock?section=mouvements&error=insufficient")
+
+    # BEGIN STOCK_MOVEMENT_AUTO_PRICE
+    # Le prix unitaire du mouvement reprend par défaut celui de la fiche article.
+    # Une valeur explicitement saisie reste possible et le total est dérivable
+    # par abs(quantite_delta) * prix_unitaire.
+    prix_saisi = request.form.get("prix_unitaire", "").strip()
+    if prix_saisi:
+        movement_unit_price = max(Decimal("0"), _stock_decimal(prix_saisi))
+    else:
+        movement_unit_price = max(
+            Decimal("0"),
+            _stock_decimal(article.get("prix_unitaire", 0)),
+        )
+    # END STOCK_MOVEMENT_AUTO_PRICE
+
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO stock_movements
+        (article_id, type_mouvement, quantite_delta, prix_unitaire, motif,
+         intervention_id, created_by_user_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """,
+        (
+            article_id,
+            mouvement,
+            delta,
+            movement_unit_price,
+            request.form.get("motif", "").strip() or None,
+            intervention_id,
+            session.get("user_id"),
+        ),
+    )
+    conn.commit()
+    conn.close()
+    return redirect("/stock?section=mouvements")
+
+
+@app.route("/stock/inventaire", methods=["POST"])
+@login_required
+@admin_required
+def stock_inventory_adjust():
+    article_id = request.form.get("article_id")
+    compte = max(Decimal("0"), _stock_decimal(request.form.get("quantite_comptee")))
+    conn = get_db_connection()
+    article = _stock_get_article_state(conn, article_id)
+    if not article:
+        conn.close()
+        return "Article introuvable", 404
+
+    physique = Decimal(str(article["stock_physique"]))
+    delta = compte - physique
+    if delta != 0:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO stock_movements
+            (article_id, type_mouvement, quantite_delta, prix_unitaire,
+             motif, created_by_user_id, created_at)
+            VALUES (?, 'inventaire', ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """,
+            (
+                article_id,
+                delta,
+                Decimal(str(article["prix_unitaire"])),
+                f"Inventaire : théorique {physique} / compté {compte}",
+                session.get("user_id"),
+            ),
+        )
+    conn.commit()
+    conn.close()
+    return redirect("/stock?section=inventaire")
+
+
+@app.route("/stock/intervention/<int:intervention_id>")
+@login_required
+@role_required("admin", "technician")
+def stock_intervention(intervention_id):
+    conn = get_db_connection()
+    if not _stock_can_manage_intervention(conn, intervention_id):
+        conn.close()
+        return "Accès refusé à cette intervention.", 403
+
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT i.id, i.title, i.status, i.scheduled_date, i.scheduled_time,
+               e.nom, COALESCE(t.code, '-')
+        FROM interventions i
+        LEFT JOIN equipements e ON e.id = i.equipment_id
+        LEFT JOIN techniciens t ON t.id = i.assigned_to
+        WHERE i.id = ?
+        """,
+        (intervention_id,),
+    )
+    intervention = cursor.fetchone()
+    if not intervention:
+        conn.close()
+        return "Intervention introuvable", 404
+
+    articles = [a for a in _stock_article_rows(conn) if a["actif"]]
+    cursor.execute(
+        """
+        SELECT r.id, a.reference, a.designation, r.quantite,
+               r.quantite_consommee, r.statut, r.created_at
+        FROM stock_reservations r
+        JOIN stock_articles a ON a.id = r.article_id
+        WHERE r.intervention_id = ?
+        ORDER BY r.created_at DESC
+        """,
+        (intervention_id,),
+    )
+    reservations = cursor.fetchall()
+    cursor.execute(
+        """
+        SELECT isi.created_at, a.reference, a.designation,
+               isi.quantite_utilisee, isi.prix_unitaire, COALESCE(u.username, '-')
+        FROM intervention_stock_items isi
+        JOIN stock_articles a ON a.id = isi.article_id
+        LEFT JOIN users u ON u.id = isi.created_by_user_id
+        WHERE isi.intervention_id = ?
+        ORDER BY isi.created_at DESC, isi.id DESC
+        """,
+        (intervention_id,),
+    )
+    consommations = cursor.fetchall()
+    conn.close()
+    return render_template(
+        "stock_intervention.html",
+        intervention=intervention,
+        articles=articles,
+        reservations=reservations,
+        consommations=consommations,
+    )
+
+
+@app.route("/stock/intervention/<int:intervention_id>/reserve", methods=["POST"])
+@login_required
+@role_required("admin", "technician")
+def stock_reserve_for_intervention(intervention_id):
+    article_id = request.form.get("article_id")
+    quantite = abs(_stock_decimal(request.form.get("quantite")))
+    if not article_id or quantite <= 0:
+        return "Article et quantité obligatoires", 400
+
+    conn = get_db_connection()
+    if not _stock_can_manage_intervention(conn, intervention_id):
+        conn.close()
+        return "Accès refusé", 403
+    article = _stock_get_article_state(conn, article_id)
+    if not article or Decimal(str(article["disponible"])) < quantite:
+        conn.close()
+        return redirect(f"/stock/intervention/{intervention_id}?error=insufficient")
+
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO stock_reservations
+        (article_id, intervention_id, quantite, quantite_consommee,
+         statut, created_by_user_id, created_at)
+        VALUES (?, ?, ?, 0, 'reserved', ?, CURRENT_TIMESTAMP)
+        """,
+        (article_id, intervention_id, quantite, session.get("user_id")),
+    )
+    conn.commit()
+    conn.close()
+    return redirect(f"/stock/intervention/{intervention_id}")
+
+
+@app.route("/stock/intervention/<int:intervention_id>/consume", methods=["POST"])
+@login_required
+@role_required("admin", "technician")
+def stock_consume_for_intervention(intervention_id):
+    article_id = request.form.get("article_id")
+    quantite = abs(_stock_decimal(request.form.get("quantite")))
+    if not article_id or quantite <= 0:
+        return "Article et quantité obligatoires", 400
+
+    conn = get_db_connection()
+    if not _stock_can_manage_intervention(conn, intervention_id):
+        conn.close()
+        return "Accès refusé", 403
+    article = _stock_get_article_state(conn, article_id)
+    if not article or Decimal(str(article["stock_physique"])) < quantite:
+        conn.close()
+        return redirect(f"/stock/intervention/{intervention_id}?error=insufficient")
+
+    cursor = conn.cursor()
+    prix = Decimal(str(article["prix_unitaire"]))
+    cursor.execute(
+        """
+        INSERT INTO stock_movements
+        (article_id, type_mouvement, quantite_delta, prix_unitaire, motif,
+         intervention_id, created_by_user_id, created_at)
+        VALUES (?, 'consommation', ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """,
+        (
+            article_id,
+            -quantite,
+            prix,
+            request.form.get("motif", "").strip() or "Consommation intervention",
+            intervention_id,
+            session.get("user_id"),
+        ),
+    )
+    mouvement_id = cursor.lastrowid
+    cursor.execute(
+        """
+        INSERT INTO intervention_stock_items
+        (intervention_id, article_id, mouvement_id, quantite_utilisee,
+         prix_unitaire, created_by_user_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """,
+        (intervention_id, article_id, mouvement_id, quantite, prix, session.get("user_id")),
+    )
+
+    remaining = quantite
+    cursor.execute(
+        """
+        SELECT id, quantite, quantite_consommee
+        FROM stock_reservations
+        WHERE intervention_id = ? AND article_id = ? AND statut = 'reserved'
+        ORDER BY created_at ASC, id ASC
+        """,
+        (intervention_id, article_id),
+    )
+    for reservation in cursor.fetchall():
+        if remaining <= 0:
+            break
+        total = _stock_decimal(reservation[1])
+        consumed = _stock_decimal(reservation[2])
+        available_reserved = max(Decimal("0"), total - consumed)
+        take = min(remaining, available_reserved)
+        new_consumed = consumed + take
+        new_status = "consumed" if new_consumed >= total else "reserved"
+        cursor.execute(
+            "UPDATE stock_reservations SET quantite_consommee = ?, statut = ? WHERE id = ?",
+            (new_consumed, new_status, reservation[0]),
+        )
+        remaining -= take
+
+    conn.commit()
+    conn.close()
+    return redirect(f"/stock/intervention/{intervention_id}")
+
+
+@app.route("/stock/intervention/<int:intervention_id>/return", methods=["POST"])
+@login_required
+@role_required("admin", "technician")
+def stock_return_from_intervention(intervention_id):
+    article_id = request.form.get("article_id")
+    quantite = abs(_stock_decimal(request.form.get("quantite")))
+    if not article_id or quantite <= 0:
+        return "Article et quantité obligatoires", 400
+
+    conn = get_db_connection()
+    if not _stock_can_manage_intervention(conn, intervention_id):
+        conn.close()
+        return "Accès refusé", 403
+    article = _stock_get_article_state(conn, article_id)
+    if not article:
+        conn.close()
+        return "Article introuvable", 404
+
+    cursor = conn.cursor()
+    prix = Decimal(str(article["prix_unitaire"]))
+    cursor.execute(
+        """
+        INSERT INTO stock_movements
+        (article_id, type_mouvement, quantite_delta, prix_unitaire, motif,
+         intervention_id, created_by_user_id, created_at)
+        VALUES (?, 'retour', ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """,
+        (
+            article_id,
+            quantite,
+            prix,
+            request.form.get("motif", "").strip() or "Retour intervention",
+            intervention_id,
+            session.get("user_id"),
+        ),
+    )
+    mouvement_id = cursor.lastrowid
+    cursor.execute(
+        """
+        INSERT INTO intervention_stock_items
+        (intervention_id, article_id, mouvement_id, quantite_utilisee,
+         prix_unitaire, created_by_user_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """,
+        (intervention_id, article_id, mouvement_id, -quantite, prix, session.get("user_id")),
+    )
+    conn.commit()
+    conn.close()
+    return redirect(f"/stock/intervention/{intervention_id}")
+
+
+@app.route("/stock/reservations/<int:reservation_id>/cancel", methods=["POST"])
+@login_required
+@role_required("admin", "technician")
+def stock_cancel_reservation(reservation_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT intervention_id FROM stock_reservations WHERE id = ?", (reservation_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return "Réservation introuvable", 404
+    intervention_id = row[0]
+    if not _stock_can_manage_intervention(conn, intervention_id):
+        conn.close()
+        return "Accès refusé", 403
+    cursor.execute(
+        "UPDATE stock_reservations SET statut = 'cancelled' WHERE id = ? AND statut = 'reserved'",
+        (reservation_id,),
+    )
+    conn.commit()
+    conn.close()
+    return redirect(f"/stock/intervention/{intervention_id}")
+# END STOCK_MODULE
+# BEGIN STOCK_SUPPLIER_FIELDS
+# Champs fournisseur : adresse, SIRET, nom/prénom contact.
+# END STOCK_SUPPLIER_FIELDS
+
 
 # ==========================
 # Dashboard
@@ -471,7 +1545,7 @@ def split_into_work_segments(start_dt: datetime, duration_minutes: int):
 @app.route("/")
 @login_required
 def dashboard():
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     selected_client = request.args.get("client")
@@ -535,7 +1609,7 @@ def dashboard():
                    i.estimated_duration,
                    i.priority,
                    e.nom,
-                   t.nom,
+                   t.code,
                    c.nom,
                    i.description,
                    i.id
@@ -555,7 +1629,7 @@ def dashboard():
                    i.estimated_duration,
                    i.priority,
                    e.nom,
-                   t.nom,
+                   t.code,
                    c.nom,
                    i.description,
                    i.id
@@ -648,8 +1722,12 @@ def dashboard():
         if e[3] in ("Maintenance en cours", "Problème")
     )
 
+    # BEGIN REAL_AVAILABILITY_METRICS
     # ==========================
     # INDICATEURS MAINTENANCE
+    # Disponibilité = temps d'ouverture client - indisponibilité réelle.
+    # Une indisponibilité commence à la date/heure prévue et s'arrête à la
+    # première soumission du rapport. Sans rapport, elle court jusqu'à maintenant.
     # ==========================
 
     base_where = ""
@@ -659,7 +1737,15 @@ def dashboard():
         base_params = [selected_client]
 
     period_days = 30
-    period_start = (datetime.today() - timedelta(days=period_days)).strftime("%Y-%m-%d")
+    period_end_dt = datetime.now()
+    period_start_dt = period_end_dt - timedelta(days=period_days)
+
+    availability_metrics = calculate_availability_metrics(
+        conn,
+        period_start=period_start_dt,
+        period_end=period_end_dt,
+        selected_client=selected_client,
+    )
 
     cursor.execute(
         f"""
@@ -680,8 +1766,6 @@ def dashboard():
     global_total, global_completed, global_planned, global_in_progress, global_cancelled, global_postponed = [
         int(v or 0) for v in row
     ]
-    global_dispo_numerator = 0
-    global_dispo_denominator = 0
 
     cursor.execute(
         f"""
@@ -695,13 +1779,7 @@ def dashboard():
             SUM(CASE WHEN i.status = 'planned' THEN 1 ELSE 0 END) AS planned,
             SUM(CASE WHEN i.status = 'in_progress' THEN 1 ELSE 0 END) AS in_progress,
             SUM(CASE WHEN i.status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled,
-            SUM(CASE WHEN i.status = 'postponed' THEN 1 ELSE 0 END) AS postponed,
-            COALESCE(SUM(
-                CASE
-                    WHEN i.status != 'cancelled' AND i.scheduled_date >= ? THEN COALESCE(i.estimated_duration, 0)
-                    ELSE 0
-                END
-            ), 0) AS downtime_minutes
+            SUM(CASE WHEN i.status = 'postponed' THEN 1 ELSE 0 END) AS postponed
         FROM equipements e
         LEFT JOIN clients c ON e.client_id = c.id
         LEFT JOIN interventions i ON i.equipment_id = e.id
@@ -709,40 +1787,29 @@ def dashboard():
         GROUP BY c.id, c.nom, c.rythme_horaire
         ORDER BY client_nom ASC
         """,
-        [period_start, *base_params],
+        base_params,
     )
+
     indicateurs_clients = []
     for client_row in cursor.fetchall():
-        rythme_horaire = normalize_rythme(client_row[2])
-        equipment_count = int(client_row[3] or 0)
-        total = int(client_row[4] or 0)
-        completed = int(client_row[5] or 0)
-        downtime_minutes = int(client_row[10] or 0)
-        minutes_per_day = RYTHME_MINUTES_PER_DAY.get(rythme_horaire, RYTHME_MINUTES_PER_DAY["1x8"])
-        disponibilite = compute_disponibilite(
-            rate_minutes_per_day=minutes_per_day,
-            equipment_count=equipment_count,
-            downtime_minutes=downtime_minutes,
-            days_window=period_days,
-        )
-        global_dispo_numerator += downtime_minutes
-        global_dispo_denominator += max(1, minutes_per_day * max(1, equipment_count) * period_days)
+        client_id = client_row[0]
+        metric = availability_metrics["clients"].get(client_id, {})
         indicateurs_clients.append({
-            "id": client_row[0],
+            "id": client_id,
             "nom": client_row[1],
-            "rythme_horaire": rythme_horaire,
-            "equipment_count": equipment_count,
-            "total": total,
-            "completed": completed,
+            "rythme_horaire": normalize_rythme(client_row[2]),
+            "equipment_count": int(client_row[3] or 0),
+            "total": int(client_row[4] or 0),
+            "completed": int(client_row[5] or 0),
             "planned": int(client_row[6] or 0),
             "in_progress": int(client_row[7] or 0),
             "cancelled": int(client_row[8] or 0),
             "postponed": int(client_row[9] or 0),
-            "downtime_minutes": downtime_minutes,
-            "disponibilite": disponibilite,
+            "downtime_minutes": int(metric.get("downtime_minutes", 0)),
+            "disponibilite": float(metric.get("rate", 100.0)),
         })
 
-    global_rate = round(max(0, min(100, 100 - (global_dispo_numerator / max(1, global_dispo_denominator) * 100))), 1)
+    global_rate = availability_metrics["global_rate"]
 
     cursor.execute(
         f"""
@@ -765,22 +1832,24 @@ def dashboard():
         """,
         base_params,
     )
+
     indicateurs_equipements = []
     for eq_row in cursor.fetchall():
-        total = int(eq_row[3] or 0)
-        completed = int(eq_row[4] or 0)
+        metric = availability_metrics["equipements"].get(eq_row[0], {})
         indicateurs_equipements.append({
             "id": eq_row[0],
             "nom": eq_row[1],
             "client_nom": eq_row[2],
-            "total": total,
-            "completed": completed,
+            "total": int(eq_row[3] or 0),
+            "completed": int(eq_row[4] or 0),
             "planned": int(eq_row[5] or 0),
             "in_progress": int(eq_row[6] or 0),
             "cancelled": int(eq_row[7] or 0),
             "postponed": int(eq_row[8] or 0),
-            "rate": round((completed / total) * 100, 1) if total else 0,
+            "downtime_minutes": int(metric.get("downtime_minutes", 0)),
+            "rate": float(metric.get("rate", 100.0)),
         })
+    # END REAL_AVAILABILITY_METRICS
 
     conn.close()
 
@@ -816,7 +1885,7 @@ def equipements():
     recherche = request.args.get("q", "").strip()
     client_filtre = request.args.get("client_id", "").strip()
 
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     query = """
@@ -885,10 +1954,10 @@ def add_equipement():
     nom = request.form["nom"]
     type_eq = request.form["type"]
     numero_serie = request.form["numero_serie"]
-    localisation = request.form["localisation"]
+    emplacement = request.form["localisation"]
     client_id = request.form["client_id"]
 
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -903,7 +1972,7 @@ def add_equipement():
 
 @app.route("/equipements/delete/<int:id>")
 def delete_equipement(id):
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("DELETE FROM equipements WHERE id = ?", (id,))
@@ -917,8 +1986,8 @@ def delete_equipement(id):
 @login_required
 def modifier_equipement(id):
 
-    conn = sqlite3.connect("database.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
+    conn.row_factory = dict
     cursor = conn.cursor()
 
     if request.method == "POST":
@@ -1006,7 +2075,7 @@ def modifier_equipement(id):
 @login_required
 def nouveau_equipement():
 
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     if request.method == "POST":
@@ -1072,8 +2141,8 @@ def nouveau_equipement():
 @login_required
 def fiche_equipement(id):
 
-    conn = sqlite3.connect("database.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
+    conn.row_factory = dict
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -1101,7 +2170,7 @@ def fiche_equipement(id):
 @login_required
 def export_equipements():
 
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -1133,7 +2202,7 @@ def export_equipements():
 @app.route("/techniciens")
 @login_required
 def techniciens():
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -1155,7 +2224,7 @@ def add_technicien():
     specialite = request.form["specialite"]
     statut = request.form["statut"]
 
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -1171,21 +2240,41 @@ def add_technicien():
 
 @app.route("/techniciens/delete/<int:id>")
 def delete_technicien(id):
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("DELETE FROM techniciens WHERE id = ?", (id,))
+    cursor.execute("SELECT COUNT(*) FROM interventions WHERE assigned_to = ?", (id,))
+    intervention_count = int(cursor.fetchone()[0] or 0)
 
+    cursor.execute(
+        """
+        SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_schema = current_schema()
+              AND table_name = 'technicien_user_links'
+        )
+        """
+    )
+    link_table_exists = bool(cursor.fetchone()[0])
+    linked_account = False
+    if link_table_exists:
+        cursor.execute("SELECT COUNT(*) FROM technicien_user_links WHERE technicien_id = ?", (id,))
+        linked_account = int(cursor.fetchone()[0] or 0) > 0
+
+    if intervention_count > 0 or linked_account:
+        conn.close()
+        return redirect("/techniciens?error=used")
+
+    cursor.execute("DELETE FROM techniciens WHERE id = ?", (id,))
     conn.commit()
     conn.close()
-
     return redirect("/techniciens")
-
 
 @app.route("/modifier_technicien/<int:id>", methods=["GET", "POST"])
 def modifier_technicien(id):
-    conn = sqlite3.connect("database.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
+    conn.row_factory = dict
     cursor = conn.cursor()
 
     if request.method == "POST":
@@ -1218,13 +2307,13 @@ def modifier_technicien(id):
 @app.route("/interventions")
 @login_required
 def interventions():
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("SELECT id, nom FROM equipements")
     equipements = cursor.fetchall()
 
-    cursor.execute("SELECT id, nom FROM techniciens")
+    cursor.execute("SELECT id, code FROM techniciens")
     techniciens = cursor.fetchall()
 
     cursor.execute("""
@@ -1236,7 +2325,7 @@ def interventions():
                interventions.scheduled_date,
                interventions.scheduled_time,
                equipements.nom,
-               techniciens.nom
+               techniciens.code
         FROM interventions
         LEFT JOIN equipements ON interventions.equipment_id = equipements.id
         LEFT JOIN techniciens ON interventions.assigned_to = techniciens.id
@@ -1254,13 +2343,13 @@ def interventions():
     )
 @app.route("/interventions/nouvelle")
 def nouvelle_intervention():
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("SELECT id, nom FROM equipements")
     equipements = cursor.fetchall()
 
-    cursor.execute("SELECT id, nom FROM techniciens WHERE statut='Actif'")
+    cursor.execute("SELECT id, code FROM techniciens WHERE statut='Actif'")
     techniciens = cursor.fetchall()
 
     conn.close()
@@ -1279,7 +2368,7 @@ def add_intervention():
     duration_hours = float(data.get("estimated_duration_hours", 0))
     duration_minutes = int(duration_hours * 60)
 
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -1310,7 +2399,7 @@ def add_intervention():
     return redirect("/interventions")
 @app.route("/interventions/delete/<int:id>")
 def delete_intervention(id):
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("SELECT equipment_id FROM interventions WHERE id=?", (id,))
@@ -1327,7 +2416,7 @@ def delete_intervention(id):
 
 @app.route("/interventions/update_status/<int:id>/<status>")
 def update_status(id, status):
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("SELECT equipment_id FROM interventions WHERE id=?", (id,))
@@ -1358,14 +2447,14 @@ def update_status(id, status):
 @login_required
 def intervention_details(id):
 
-    conn = sqlite3.connect("database.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
+    conn.row_factory = dict
     cursor = conn.cursor()
 
     cursor.execute("""
         SELECT interventions.*,
                equipements.nom as equipement_nom,
-               techniciens.nom as technicien_nom
+               techniciens.code as technicien_code
         FROM interventions
         LEFT JOIN equipements ON interventions.equipment_id = equipements.id
         LEFT JOIN techniciens ON interventions.assigned_to = techniciens.id
@@ -1387,7 +2476,7 @@ def rapports():
     q = request.args.get("q", "").strip()
     etat = request.args.get("etat", "").strip()
 
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("SELECT COUNT(*) FROM rapports_intervention")
@@ -1444,11 +2533,143 @@ def rapports():
     )
 
 
+
+# BEGIN INTERVENTION_REPORT_PDF_EXPORT
+@app.route("/rapports/<int:id>/pdf")
+@login_required
+def rapport_pdf(id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT r.id,
+               r.intervention_id,
+               r.travaux,
+               r.heure_debut,
+               r.heure_fin,
+               r.observations,
+               r.etat,
+               r.recommandations,
+               r.created_at,
+               COALESCE(u.username, '-'),
+               i.title,
+               i.type,
+               i.priority,
+               i.status,
+               i.scheduled_date,
+               i.scheduled_time,
+               i.estimated_duration,
+               e.id,
+               e.nom,
+               e.code,
+               e.type,
+               e.emplacement,
+               e.numero_serie,
+               e.fabricant,
+               e.modele,
+               c.nom,
+               c.email,
+               c.telephone,
+               t.nom,
+               t.prenom,
+               t.code
+        FROM rapports_intervention r
+        LEFT JOIN interventions i ON i.id = r.intervention_id
+        LEFT JOIN equipements e ON e.id = i.equipment_id
+        LEFT JOIN clients c ON c.id = e.client_id
+        LEFT JOIN techniciens t ON t.id = i.assigned_to
+        LEFT JOIN users u ON u.id = r.created_by_user_id
+        WHERE r.id = ?
+        """,
+        (id,),
+    )
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return "Rapport introuvable", 404
+
+    technician_name = " ".join(
+        part for part in [row[29], row[28]] if part
+    ).strip() or row[9] or "-"
+
+    data = {
+        "report_id": row[0],
+        "intervention_id": row[1],
+        "travaux": row[2],
+        "heure_debut": row[3],
+        "heure_fin": row[4],
+        "observations": row[5],
+        "etat": row[6],
+        "recommandations": row[7],
+        "created_at": row[8],
+        "author": row[9],
+        "intervention_title": row[10],
+        "intervention_type": row[11],
+        "priority": row[12],
+        "intervention_status": row[13],
+        "scheduled_date": row[14],
+        "scheduled_time": row[15],
+        "estimated_duration": row[16],
+        "equipment_id": row[17],
+        "equipment_name": row[18],
+        "equipment_code": row[19],
+        "equipment_type": row[20],
+        "equipment_location": row[21],
+        "serial_number": row[22],
+        "manufacturer": row[23],
+        "model": row[24],
+        "client_name": row[25],
+        "client_email": row[26],
+        "client_phone": row[27],
+        "technician_name": technician_name,
+        "technician_code": row[30],
+        "work_date": row[14],
+    }
+
+    materials = []
+    cursor.execute("SELECT to_regclass('public.intervention_stock_items')")
+    stock_table = cursor.fetchone()
+    if stock_table and stock_table[0] and row[1]:
+        cursor.execute(
+            """
+            SELECT a.designation,
+                   a.reference,
+                   isi.quantite_utilisee,
+                   a.unite
+            FROM intervention_stock_items isi
+            LEFT JOIN stock_articles a ON a.id = isi.article_id
+            WHERE isi.intervention_id = ?
+            ORDER BY isi.created_at ASC, isi.id ASC
+            """,
+            (row[1],),
+        )
+        for material_row in cursor.fetchall():
+            quantity = str(material_row[2] or "-")
+            if material_row[3]:
+                quantity = f"{quantity} {material_row[3]}"
+            materials.append(
+                {
+                    "designation": material_row[0] or "-",
+                    "reference": material_row[1] or "-",
+                    "quantite": quantity,
+                }
+            )
+
+    conn.close()
+    output = create_intervention_report_pdf(data, materials=materials)
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=f"Rapport_Intervention_{id}.pdf",
+        mimetype="application/pdf",
+    )
+# END INTERVENTION_REPORT_PDF_EXPORT
+
 @app.route("/rapports/<int:id>/details")
 @login_required
 def rapport_details(id):
-    conn = sqlite3.connect("database.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
+    conn.row_factory = dict
     cursor = conn.cursor()
 
     cursor.execute(
@@ -1479,7 +2700,7 @@ def add_rapport():
     data = request.form
     intervention_id = data.get("intervention_id")
 
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("SELECT equipment_id FROM interventions WHERE id=?", (intervention_id,))
@@ -1546,7 +2767,7 @@ def add_rapport():
 @login_required
 @role_required("admin")
 def delete_rapport(id):
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute(
@@ -1578,7 +2799,7 @@ def delete_rapport(id):
 @app.route("/export/rapports")
 @login_required
 def export_rapports():
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute(
@@ -1633,7 +2854,7 @@ def declarations():
     q = request.args.get("q", "").strip()
     status = request.args.get("status", "").strip()
 
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     # KPIs
@@ -1693,12 +2914,95 @@ def declarations():
         k_rejected=k_rejected
     )
     
+# BEGIN DECLARATION_PDF_EXPORT
+@app.route("/declarations/<int:id>/pdf")
+@login_required
+def export_declaration_pdf(id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT d.id,
+               d.title,
+               d.description,
+               d.urgency,
+               d.location,
+               d.status,
+               d.created_at,
+               d.declared_by_name,
+               e.nom,
+               e.code,
+               e.type,
+               e.emplacement,
+               e.numero_serie,
+               e.fabricant,
+               e.modele,
+               c.nom,
+               u.username,
+               d.intervention_id,
+               i.title
+        FROM declarations_panne d
+        LEFT JOIN equipements e ON e.id = d.equipment_id
+        LEFT JOIN clients c ON c.id = e.client_id
+        LEFT JOIN users u ON u.id = d.declared_by_user_id
+        LEFT JOIN interventions i ON i.id = d.intervention_id
+        WHERE d.id = ?
+        """,
+        (id,),
+    )
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return "Déclaration introuvable", 404
+
+    cursor.execute(
+        "SELECT filepath FROM declaration_photos WHERE declaration_id = ? ORDER BY id ASC",
+        (id,),
+    )
+    photo_paths = [photo[0] for photo in cursor.fetchall() if photo and photo[0]]
+    conn.close()
+
+    data = {
+        "id": row[0],
+        "title": row[1],
+        "description": row[2],
+        "urgency": row[3],
+        "location": row[4],
+        "status": row[5],
+        "created_at": row[6],
+        "declared_by_name": row[7],
+        "equipement_nom": row[8],
+        "equipement_code": row[9],
+        "equipement_type": row[10],
+        "equipement_emplacement": row[11],
+        "numero_serie": row[12],
+        "fabricant": row[13],
+        "modele": row[14],
+        "client_nom": row[15],
+        "username": row[16],
+        "intervention_id": row[17],
+        "intervention_title": row[18],
+    }
+
+    pdf_file = create_declaration_pdf(
+        data,
+        photo_paths=photo_paths,
+        base_dir=os.path.dirname(os.path.abspath(__file__)),
+    )
+    return send_file(
+        pdf_file,
+        as_attachment=True,
+        download_name=f"Declaration_panne_{id}.pdf",
+        mimetype="application/pdf",
+    )
+# END DECLARATION_PDF_EXPORT
+
 @app.route("/declarations/nouvelle", methods=["GET", "POST"])
 @login_required
 @role_required("operator", "admin", "technician")  # un tech peut aussi déclarer si besoin
 def nouvelle_declaration():
 
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     if request.method == "POST":
@@ -1759,7 +3063,7 @@ def declaration_set_status(id, status):
     if status not in ("pending", "in_progress", "resolved", "rejected"):
         return "Statut invalide", 400
 
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute(
@@ -1795,7 +3099,7 @@ def declaration_set_status(id, status):
 @role_required("technician", "admin")
 def declaration_create_intervention(id):
 
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     # Récup déclaration
@@ -1815,7 +3119,7 @@ def declaration_create_intervention(id):
         conn.close()
         return "Cette déclaration est verrouillée, création d'intervention impossible.", 400
 
-    cursor.execute("SELECT id, nom FROM techniciens WHERE statut='Actif'")
+    cursor.execute("SELECT id, code FROM techniciens WHERE statut='Actif'")
     techniciens = cursor.fetchall()
 
     if request.method == "POST":
@@ -1889,7 +3193,7 @@ def declaration_force_status(id, status):
     if status not in ("pending", "in_progress", "resolved", "rejected"):
         return "Statut invalide", 400
 
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("SELECT equipment_id FROM declarations_panne WHERE id=?", (id,))
@@ -1914,7 +3218,7 @@ def declaration_force_status(id, status):
 @login_required
 def export_interventions():
 
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -1951,7 +3255,7 @@ def export_interventions():
 @app.route("/clients")
 @login_required
 def clients():
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -1983,7 +3287,7 @@ def nouveau_client():
         site_web = request.form.get("site_web")
         rythme_horaire = normalize_rythme(request.form.get("rythme_horaire"))
 
-        conn = sqlite3.connect("database.db")
+        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO clients (nom, email, telephone, site_web, rythme_horaire)
@@ -2004,7 +3308,7 @@ def add_client():
     site_web = request.form.get("site_web")
     rythme_horaire = normalize_rythme(request.form.get("rythme_horaire"))
 
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -2018,20 +3322,24 @@ def add_client():
 
 @app.route("/clients/delete/<int:id>")
 def delete_client(id):
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("DELETE FROM clients WHERE id=?", (id,))
+    cursor.execute("SELECT COUNT(*) FROM equipements WHERE client_id = ?", (id,))
+    equipment_count = int(cursor.fetchone()[0] or 0)
+    if equipment_count > 0:
+        conn.close()
+        return redirect("/clients?error=used")
 
+    cursor.execute("DELETE FROM clients WHERE id = ?", (id,))
     conn.commit()
     conn.close()
-
     return redirect("/clients")
 
 @app.route("/modifier_client/<int:id>", methods=["GET", "POST"])
 def modifier_client(id):
-    conn = sqlite3.connect("database.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
+    conn.row_factory = dict
     cursor = conn.cursor()
 
     if request.method == "POST":
@@ -2061,7 +3369,7 @@ def modifier_client(id):
 @login_required
 def export_clients():
 
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -2091,182 +3399,231 @@ def export_clients():
 # ==========================
 # Export
 # ==========================
+# BEGIN EXCEL_TREE_EXPORT
 @app.route("/export/gmao-xlsx")
 @login_required
 def export_gmao_xlsx():
+    template_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "GMAO.xlsx",
+    )
+    if not os.path.isfile(template_path):
+        return "Modèle Excel GMAO.xlsx introuvable dans le dossier de l'application.", 500
 
-    # ======================
-    # 1) DATA depuis SQLite
-    # ======================
-    conn = sqlite3.connect("database.db")
-    cursor = conn.cursor()
+    output = create_gmao_excel_export(get_db_connection, template_path)
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name="Export_GMAO.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+# END EXCEL_TREE_EXPORT
 
-    cursor.execute("SELECT id, nom FROM clients")
-    clients = cursor.fetchall()
-    client_name_by_id = {cid: nom for cid, nom in clients}
 
-    cursor.execute("""
-        SELECT client_id, nom, code, type, numero_serie, emplacement
-        FROM equipements
-        ORDER BY client_id, nom
-    """)
-    equipements = cursor.fetchall()
+# BEGIN REPORT_COMPLETION_INTEGRITY
+@app.before_request
+def prevent_duplicate_intervention_report_submission():
+    """Empêche de créer plusieurs rapports pour une même intervention.
 
-    equip_by_client = {}
-    for client_id, nom, code, typ, serie, empl in equipements:
-        equip_by_client.setdefault(client_id, []).append((nom, code, typ, serie, empl))
-
-    cursor.execute("""
-        SELECT clients.id,
-               COALESCE(SUM(interventions.estimated_duration), 0) as total_minutes
-        FROM clients
-        LEFT JOIN equipements ON equipements.client_id = clients.id
-        LEFT JOIN interventions ON interventions.equipment_id = equipements.id
-        GROUP BY clients.id
-    """)
-    minutes_by_client = dict(cursor.fetchall())
-    hours_by_client = {cid: round((minutes_by_client.get(cid, 0) or 0) / 60, 2) for cid, _ in clients}
-
-    conn.close()
-
-    # ======================
-    # 2) Charger le modèle
-    # ======================
-    wb = load_workbook("GMAO.xlsx")
-
-    def get_sheet(name_candidates):
-        lower_map = {s.lower(): s for s in wb.sheetnames}
-        for n in name_candidates:
-            if n.lower() in lower_map:
-                return wb[lower_map[n.lower()]]
+    L'interface masque normalement le bouton dès que l'intervention est terminée,
+    mais cette protection serveur reste la source de vérité si un formulaire est
+    soumis directement ou depuis une ancienne page encore ouverte.
+    """
+    if request.method != "POST" or request.path != "/rapports/add":
         return None
 
-    ws_eq = get_sheet(["Listing équip", "Listing equip", "Listing équipement", "Listing equipement"])
-    ws_h  = get_sheet(["Listing heures", "Listing heure"])
-    ws_i  = get_sheet(["Listing inter", "Listing intervention", "Listing interventions"])
-    if not ws_eq:
-        return "Onglet introuvable: Listing équip", 500
-    if not ws_h:
-        return "Onglet introuvable: Listing heures", 500
-    if not ws_i:
-        return "Onglet introuvable: Listing intervention", 500
+    intervention_id = request.form.get("intervention_id")
+    if not intervention_id:
+        return None
 
-    # ======================
-    # 3) Mapping couleur -> client
-    # ======================
-    # ⚠️ Les codes RGB exacts peuvent varier selon Excel.
-    # Si ça ne matche pas du 1er coup, je te dis comment récupérer la bonne valeur.
-    COLOR_TO_CLIENT = {
-        "FF00B050": "ROGA MECANIQUE",  # vert
-        "FF0070C0": "GALY AERO",       # bleu
-        "FF7030A0": "GALY CND",        # violet
-    }
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT id
+        FROM rapports_intervention
+        WHERE intervention_id = ?
+        ORDER BY id ASC
+        LIMIT 1
+        """,
+        (intervention_id,),
+    )
+    existing = cursor.fetchone()
+    conn.close()
 
-    def cell_rgb(cell):
+    if existing:
+        return (
+            "Un rapport a déjà été soumis pour cette intervention. "
+            "La création d'un second rapport est interdite.",
+            409,
+        )
+
+    return None
+# END REPORT_COMPLETION_INTEGRITY
+
+
+# BEGIN STOCK_BEFORE_REPORT_WORKFLOW
+
+def _stock_intervention_is_locked(conn, intervention_id):
+    cursor = conn.cursor()
+    cursor.execute("SELECT status FROM interventions WHERE id = ?", (intervention_id,))
+    row = cursor.fetchone()
+    if not row:
+        return None
+
+    status = str(row[0] or "").lower()
+    cursor.execute(
+        "SELECT COUNT(*) FROM rapports_intervention WHERE intervention_id = ?",
+        (intervention_id,),
+    )
+    has_report = int(cursor.fetchone()[0] or 0) > 0
+    return status == "completed" or has_report
+
+
+def _stock_intervention_has_open_reservations(conn, intervention_id):
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT COUNT(*)
+        FROM stock_reservations
+        WHERE intervention_id = ? AND statut = 'reserved'
+        """,
+        (intervention_id,),
+    )
+    return int(cursor.fetchone()[0] or 0) > 0
+
+
+@app.route("/stock/intervention/<int:intervention_id>/validate", methods=["POST"])
+@login_required
+@role_required("admin", "technician")
+def validate_stock_before_report(intervention_id):
+    conn = get_db_connection()
+    if not _stock_can_manage_intervention(conn, intervention_id):
+        conn.close()
+        return "Accès refusé à cette intervention.", 403
+
+    locked = _stock_intervention_is_locked(conn, intervention_id)
+    if locked is None:
+        conn.close()
+        return "Intervention introuvable.", 404
+    if locked:
+        conn.close()
+        return "Le rapport a déjà été soumis : les pièces sont verrouillées.", 409
+    if _stock_intervention_has_open_reservations(conn, intervention_id):
+        conn.close()
+        return "Il reste une ou plusieurs réservations ouvertes. Consomme-les ou annule-les avant de rédiger le rapport.", 409
+    conn.close()
+
+    reviewed = list(session.get("stock_reviewed_interventions", []))
+    intervention_id = int(intervention_id)
+    if intervention_id not in reviewed:
+        reviewed.append(intervention_id)
+    session["stock_reviewed_interventions"] = reviewed[-100:]
+    session.modified = True
+    return redirect(f"/interventions?report={intervention_id}")
+
+
+@app.before_request
+def enforce_stock_before_report_workflow():
+    if request.method != "POST":
+        return None
+
+    path = request.path
+
+    # Le rapport ne peut être envoyé qu'après validation explicite de l'écran pièces.
+    if path == "/rapports/add":
+        raw_id = request.form.get("intervention_id")
         try:
-            c = cell.fill.fgColor
-            return c.rgb if c and c.type == "rgb" else None
-        except:
+            intervention_id = int(raw_id)
+        except (TypeError, ValueError):
             return None
 
-    # ======================
-    # 4) Remplir “listing équipement” (par blocs de colonnes)
-    # ======================
-    if ws_eq:
-        BLOCKS = [
-            ("B", "F", "ROGA MECANIQUE"),
-            ("H", "L", "GALY AERO"),
-            ("N", "R", "GALY CND"),
-        ]
+        reviewed = {int(value) for value in session.get("stock_reviewed_interventions", [])}
+        if intervention_id not in reviewed:
+            return (
+                "Les pièces de cette intervention doivent être vérifiées avant de soumettre le rapport. "
+                "Passe d'abord par 'Gérer les pièces'.",
+                409,
+            )
 
-        def col_letter_to_index(letter: str) -> int:
-            return ord(letter.upper()) - ord("A") + 1
+        conn = get_db_connection()
+        if _stock_intervention_has_open_reservations(conn, intervention_id):
+            conn.close()
+            return (
+                "Il reste une ou plusieurs réservations ouvertes. "
+                "Consomme-les ou annule-les avant de soumettre le rapport.",
+                409,
+            )
+        conn.close()
+        return None
 
-        def find_header_row_in_block(ws, start_col, end_col, max_scan_rows=50):
-            # on cherche une ligne qui contient au moins 2 libellés connus
-            wanted = {"nom", "code", "type", "emplacement", "localisation", "n°série", "n° serie", "numero_serie", "numéro de série", "nserie", "n°serie"}
-            for r in range(1, max_scan_rows + 1):
-                hits = 0
-                for c in range(start_col, end_col + 1):
-                    v = str(ws.cell(r, c).value or "").strip().lower()
-                    if v in wanted or "série" in v or "serie" in v:
-                        hits += 1
-                if hits >= 2:
-                    return r
-            return None
+    # La validation de l'étape pièces doit naturellement rester autorisée.
+    if path.startswith("/stock/intervention/") and path.endswith("/validate"):
+        return None
 
-        def build_col_map(ws, header_row, start_col, end_col):
-            col_map = {}
-            for c in range(start_col, end_col + 1):
-                t = str(ws.cell(header_row, c).value or "").strip().lower()
-                if t in ("nom", "désignation", "designation"):
-                    col_map["nom"] = c
-                elif t == "code":
-                    col_map["code"] = c
-                elif t == "type":
-                    col_map["type"] = c
-                elif "série" in t or "serie" in t:
-                    col_map["serie"] = c
-                elif "emplacement" in t or "localisation" in t:
-                    col_map["empl"] = c
-            return col_map
+    intervention_id = None
 
-        # récupérer l’ID client correspondant au nom
-        def get_client_id_by_name(client_name: str):
-            for cid, cname in client_name_by_id.items():
-                if (cname or "").strip().lower() == client_name.strip().lower():
-                    return cid
-            return None
+    # Réserver / consommer / retourner depuis une intervention.
+    if path.startswith("/stock/intervention/"):
+        parts = path.strip("/").split("/")
+        if len(parts) >= 4:
+            try:
+                intervention_id = int(parts[2])
+            except (TypeError, ValueError):
+                intervention_id = None
 
-        for startL, endL, client_name in BLOCKS:
-            start_col = col_letter_to_index(startL)
-            end_col = col_letter_to_index(endL)
+    # Annulation d'une réservation.
+    elif path.startswith("/stock/reservations/") and path.endswith("/cancel"):
+        parts = path.strip("/").split("/")
+        try:
+            reservation_id = int(parts[2])
+        except (IndexError, TypeError, ValueError):
+            reservation_id = None
+        if reservation_id is not None:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT intervention_id FROM stock_reservations WHERE id = ?",
+                (reservation_id,),
+            )
+            row = cursor.fetchone()
+            conn.close()
+            intervention_id = int(row[0]) if row and row[0] is not None else None
 
-            header_row = find_header_row_in_block(ws_eq, start_col, end_col)
-            if not header_row:
-                continue
+    # Un mouvement général éventuellement rattaché à une intervention.
+    elif path == "/stock/mouvements/add":
+        raw_id = request.form.get("intervention_id")
+        if raw_id:
+            try:
+                intervention_id = int(raw_id)
+            except (TypeError, ValueError):
+                intervention_id = None
 
-            col_map = build_col_map(ws_eq, header_row, start_col, end_col)
-            data_start = header_row + 1
+    if intervention_id is None:
+        return None
 
-            client_id = get_client_id_by_name(client_name)
-            rows_to_write = equip_by_client.get(client_id, []) if client_id else []
+    conn = get_db_connection()
+    locked = _stock_intervention_is_locked(conn, intervention_id)
+    conn.close()
 
-            # Nettoyage (sans casser la mise en forme)
-            for r in range(data_start, data_start + 200):
-                for key, c in col_map.items():
-                    ws_eq.cell(r, c).value = None
+    if locked:
+        return redirect(f"/stock/intervention/{intervention_id}?locked=1")
 
-            # Remplissage
-            r = data_start
-            for (nom, code, typ, serie, empl) in rows_to_write:
-                if "nom" in col_map:   ws_eq.cell(r, col_map["nom"]).value = nom
-                if "code" in col_map:  ws_eq.cell(r, col_map["code"]).value = code
-                if "type" in col_map:  ws_eq.cell(r, col_map["type"]).value = typ
-                if "serie" in col_map: ws_eq.cell(r, col_map["serie"]).value = serie
-                if "empl" in col_map:  ws_eq.cell(r, col_map["empl"]).value = empl
-                r += 1
-    # ======================
-    # 5) Remplir “listing heures”
-    # ======================
-    if ws_h:
-        # On cherche les lignes où le nom du client apparaît, puis on remplit la cellule à droite
-        for row in range(1, ws_h.max_row + 1):
-            for col in range(1, ws_h.max_column + 1):
-                v = str(ws_h.cell(row, col).value or "").strip().lower()
-                for cid, cname in client_name_by_id.items():
-                    if v == cname.strip().lower():
-                        # hypothèse : la colonne des heures est juste à droite
-                        ws_h.cell(row, col + 1).value = hours_by_client.get(cid, 0.0)
+    return None
+# END STOCK_BEFORE_REPORT_WORKFLOW
 
-    # ======================
-    # 6) Retour fichier
-    # ======================
-    tmp = NamedTemporaryFile(delete=False, suffix=".xlsx")
-    wb.save(tmp.name)
-    tmp.close()
 
-    return send_file(tmp.name, as_attachment=True, download_name="Export_GMAO.xlsx")
+# BEGIN MOBILE_PWA_SERVER
+@app.after_request
+def configure_mobile_pwa(response):
+    # Le service worker est servi depuis /static, mais doit pouvoir contrôler
+    # toute l'application. Ce header autorise explicitement le scope racine.
+    if request.path == "/static/service-worker.js":
+        response.headers["Service-Worker-Allowed"] = "/"
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+# END MOBILE_PWA_SERVER
+
 # ==========================
 # Lancement
 # ==========================

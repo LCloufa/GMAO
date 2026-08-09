@@ -78,6 +78,15 @@
 
       <div style="margin-top:10px; color:#94a3b8; font-size:13px;">{{ d[6] }}</div>
 
+      <!-- DECLARATION_PDF_EXPORT_BUTTON -->
+      <div style="margin-top:10px;">
+        <a class="btn-secondary"
+           style="text-decoration:none; display:inline-flex; align-items:center; gap:6px;"
+           href="/declarations/{{ d[0] }}/pdf">
+          ⬇ PDF
+        </a>
+      </div>
+
       {% if session['role'] in ['technician','admin'] %}
         {% set declaration_locked = d[5] in ['in_progress', 'resolved', 'rejected'] or d[11] %}
         <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">

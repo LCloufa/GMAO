@@ -114,34 +114,15 @@
                 <div class="stock-muted">Une fois le rapport soumis, cette liste de pièces sera définitivement verrouillée.</div>
             </div>
         </div>
-        <button class="btn-success" style="width:100%;" type="button" onclick="validateStockAndOpenReport({{ intervention[0] }}, {{ ((intervention[4] or '')|string)|tojson }})">
-            ✓ Pièces vérifiées → Rédiger le rapport
-        </button>
+        <form method="POST" action="/stock/intervention/{{ intervention[0] }}/validate" style="margin:0;">
+            <button class="btn-success" style="width:100%;" type="submit">
+                ✓ Pièces vérifiées → Rédiger le rapport
+            </button>
+        </form>
     </section>
     {% endif %}
 </div>
 
-<script>
-async function validateStockAndOpenReport(interventionId, startTime) {
-    try {
-        const response = await fetch(`/stock/intervention/${interventionId}/validate`, {
-            method: "POST",
-            credentials: "same-origin",
-            headers: {"X-Requested-With": "XMLHttpRequest"}
-        });
-        if (!response.ok) {
-            const message = await response.text();
-            alert(message || "Impossible de valider les pièces de cette intervention.");
-            return;
-        }
-        document.getElementById("drawerTitle").innerText = "Rapport d'intervention";
-        openReportForm(interventionId, startTime || "");
-        document.getElementById("drawer").classList.add("open");
-    } catch (error) {
-        console.error(error);
-        alert("Impossible de valider les pièces de cette intervention.");
-    }
-}
-</script>
+
 
 {% endblock %}
