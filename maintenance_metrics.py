@@ -134,15 +134,55 @@ def working_minutes_between(start: datetime, end: datetime, rythme: str) -> int:
     return minutes_in_intervals(working_intervals(start, end, rythme))
 
 
+def _append_downtime_interval(
+    intervals_by_equipment,
+    equipment_info,
+    equipment_id,
+    start,
+    end,
+    period_start,
+    period_end,
+):
+    """Ajoute un arrêt après limitation à la période et au rythme du client."""
+    info = equipment_info.get(equipment_id)
+    if not info:
+        return
+
+    start = _parse_datetime(start)
+    end = _parse_datetime(end)
+    if not start or not end or end <= start:
+        return
+    if start >= period_end or end <= period_start:
+        return
+
+    _, rythme = info
+    clipped_start = max(start, period_start)
+    clipped_end = min(end, period_end)
+    if clipped_end <= clipped_start:
+        return
+
+    intervals_by_equipment[equipment_id].extend(
+        working_intervals(clipped_start, clipped_end, rythme)
+    )
+
+
 def calculate_availability_metrics(conn, period_start: datetime, period_end: datetime, selected_client=None):
     """Calcule les indisponibilités réelles et les taux de disponibilité.
 
-    Une intervention commence à sa date/heure planifiée. Sa fin réelle est la
-    première soumission de rapport. Tant qu'aucun rapport n'existe, une
-    intervention déjà commencée continue jusqu'à `period_end` (généralement
-    maintenant). Les temps hors rythme horaire du client ne sont pas comptés.
-    Les chevauchements d'interventions d'un même équipement sont fusionnés afin
-    de ne jamais compter deux fois la même minute d'indisponibilité.
+    Règle métier principale : lorsqu'une panne a été déclarée, l'indisponibilité
+    commence à la date/heure de création de la déclaration, et non au démarrage
+    planifié de l'intervention. Elle se termine à la première soumission du rapport
+    lié à l'intervention. Tant qu'aucun rapport n'existe, la panne reste ouverte
+    jusqu'à ``period_end`` (généralement maintenant).
+
+    Pour les interventions qui ne proviennent d'aucune déclaration de panne
+    (préventif, maintenance planifiée, intervention créée manuellement...), la
+    logique historique est conservée : début planifié -> première soumission du
+    rapport, ou -> ``period_end`` tant que le rapport n'existe pas.
+
+    Les déclarations rejetées ne créent pas d'indisponibilité. Les temps hors
+    rythme horaire du client ne sont pas comptés et les chevauchements d'arrêts
+    d'un même équipement sont fusionnés.
     """
     cursor = conn.cursor()
 
@@ -175,6 +215,70 @@ def calculate_availability_metrics(conn, period_start: datetime, period_end: dat
         client_names[client_id] = client_name
         client_rythmes[client_id] = rythme
 
+    intervals_by_equipment = defaultdict(list)
+
+    # 1) Pannes déclarées : l'arrêt démarre dès la création de la déclaration.
+    declaration_query = """
+        SELECT d.id,
+               d.equipment_id,
+               d.created_at,
+               d.updated_at,
+               d.status,
+               d.intervention_id,
+               reports.report_created_at
+        FROM declarations_panne d
+        JOIN equipements e ON d.equipment_id = e.id
+        LEFT JOIN (
+            SELECT intervention_id, MIN(created_at) AS report_created_at
+            FROM rapports_intervention
+            GROUP BY intervention_id
+        ) reports ON reports.intervention_id = d.intervention_id
+        WHERE d.status <> 'rejected'
+    """
+    declaration_params = []
+    if selected_client:
+        declaration_query += " AND e.client_id = ?"
+        declaration_params.append(selected_client)
+
+    cursor.execute(declaration_query, declaration_params)
+    declaration_rows = cursor.fetchall()
+
+    for row in declaration_rows:
+        (
+            _,
+            equipment_id,
+            declaration_created_at,
+            declaration_updated_at,
+            declaration_status,
+            _,
+            report_created_at,
+        ) = row
+
+        start = _parse_datetime(declaration_created_at)
+        if not start or start >= period_end:
+            continue
+
+        report_end = _parse_datetime(report_created_at)
+        if report_end is not None:
+            end = report_end
+        elif str(declaration_status or "").lower() == "resolved":
+            # Sécurité pour une déclaration clôturée manuellement sans rapport.
+            end = _parse_datetime(declaration_updated_at) or period_end
+        else:
+            # Panne toujours ouverte : l'indisponibilité continue jusqu'à maintenant.
+            end = period_end
+
+        _append_downtime_interval(
+            intervals_by_equipment,
+            equipment_info,
+            equipment_id,
+            start,
+            end,
+            period_start,
+            period_end,
+        )
+
+    # 2) Interventions sans déclaration : logique historique conservée.
     intervention_query = """
         SELECT i.id,
                i.equipment_id,
@@ -190,6 +294,12 @@ def calculate_availability_metrics(conn, period_start: datetime, period_end: dat
             GROUP BY intervention_id
         ) reports ON reports.intervention_id = i.id
         WHERE i.status NOT IN ('cancelled', 'postponed')
+          AND NOT EXISTS (
+              SELECT 1
+              FROM declarations_panne d
+              WHERE d.intervention_id = i.id
+                AND d.status <> 'rejected'
+          )
     """
     intervention_params = []
     if selected_client:
@@ -199,28 +309,23 @@ def calculate_availability_metrics(conn, period_start: datetime, period_end: dat
     cursor.execute(intervention_query, intervention_params)
     intervention_rows = cursor.fetchall()
 
-    intervals_by_equipment = defaultdict(list)
-
     for row in intervention_rows:
         _, equipment_id, scheduled_date, scheduled_time, _, report_created_at = row
-        info = equipment_info.get(equipment_id)
-        if not info:
-            continue
-
-        _, rythme = info
         start = _parse_start(scheduled_date, scheduled_time)
         if not start or start >= period_end:
             continue
 
         report_end = _parse_datetime(report_created_at)
-        actual_end = report_end if report_end is not None else period_end
-        if actual_end <= period_start or actual_end <= start:
-            continue
+        end = report_end if report_end is not None else period_end
 
-        clipped_start = max(start, period_start)
-        clipped_end = min(actual_end, period_end)
-        intervals_by_equipment[equipment_id].extend(
-            working_intervals(clipped_start, clipped_end, rythme)
+        _append_downtime_interval(
+            intervals_by_equipment,
+            equipment_info,
+            equipment_id,
+            start,
+            end,
+            period_start,
+            period_end,
         )
 
     equipment_metrics: Dict[int, dict] = {}
