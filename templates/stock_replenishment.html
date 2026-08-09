@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="stock-page">
+<div class="stock-header"><div><h1>Réapprovisionnement</h1><p>Articles sous seuil et quantités recommandées.</p></div><div class="stock-header-actions"><a class="stock-btn-secondary" href="/stock">Stock</a><a class="stock-btn-secondary" href="/stock/achats">Commandes fournisseurs</a><a class="stock-btn-secondary" href="/stock/demandes-achat">Demandes d'achat</a></div></div>
+<section class="stock-panel"><div class="stock-panel-head"><div><h2>Besoins détectés</h2><div class="stock-muted">La quantité recommandée tient compte du stock disponible et des quantités déjà commandées.</div></div></div>
+<form method="POST" action="/stock/reapprovisionnement/create-orders"><div class="stock-table-wrap"><table class="stock-table"><thead><tr><th></th><th>Référence</th><th>Désignation</th><th>Disponible</th><th>Mini</th><th>Maxi</th><th>En commande</th><th>Recommandé</th><th>Fournisseur préféré</th><th>Délai</th></tr></thead><tbody>
+{% for a in items %}<tr><td>{% if a.supplier_id and a.recommended > 0 %}<input type="checkbox" name="article_ids" value="{{ a.id }}" checked>{% else %}-{% endif %}</td><td><strong>{{ a.reference }}</strong></td><td>{{ a.designation }}</td><td>{{ a.available }} {{ a.unite }}</td><td>{{ a.stock_min }}</td><td>{{ a.stock_max if a.stock_max is not none else '-' }}</td><td>{{ a.on_order }}</td><td><strong>{{ a.recommended }} {{ a.unite }}</strong></td><td>{{ a.supplier_name or 'À définir' }}</td><td>{{ a.lead_days if a.lead_days else '-' }}</td></tr>{% else %}<tr><td colspan="10" class="stock-empty">Aucun article à réapprovisionner.</td></tr>{% endfor %}
+</tbody></table></div>{% if items %}<div class="stock-form-actions"><button type="submit">Créer les brouillons par fournisseur</button></div>{% endif %}</form></section></div>
+{% endblock %}
