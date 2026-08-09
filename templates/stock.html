@@ -124,7 +124,7 @@
         </div>
         <div class="stock-table-wrap">
             <table class="stock-table">
-                <thead><tr><th>Date</th><th>Article</th><th>Type</th><th>Quantité</th><th>Prix</th><th>Motif</th><th>Utilisateur</th><th>Intervention</th></tr></thead>
+                <thead><tr><th>Date</th><th>Article</th><th>Type</th><th>Quantité</th><th>Prix unitaire</th><th>Prix total</th><th>Motif</th><th>Utilisateur</th><th>Intervention</th></tr></thead>
                 <tbody>
                 {% for m in mouvements %}
                     <tr>
@@ -132,13 +132,14 @@
                         <td><strong>{{ m[2] }}</strong><div class="stock-muted">{{ m[3] }}</div></td>
                         <td><span class="stock-badge stock-badge-neutral">{{ m[4] }}</span></td>
                         <td class="{% if m[5] >= 0 %}stock-qty-positive{% else %}stock-qty-negative{% endif %}">{{ '+' if m[5] >= 0 else '' }}{{ m[5] }}</td>
-                        <td>{{ m[6] or '-' }}</td>
+                        <td>{% if m[6] is not none %}{{ "%.2f"|format(m[6]) }} €{% else %}-{% endif %}</td>
+                        <td>{% if m[6] is not none %}{{ "%.2f"|format((m[5]|abs) * m[6]) }} €{% else %}-{% endif %}</td>
                         <td>{{ m[7] or '-' }}</td>
                         <td>{{ m[8] }}</td>
                         <td>{% if m[9] %}<a class="stock-ref" href="/stock/intervention/{{ m[9] }}">#{{ m[9] }}</a> · {{ m[10] }}{% else %}-{% endif %}</td>
                     </tr>
                 {% else %}
-                    <tr><td colspan="8" class="stock-empty">Aucun mouvement enregistré.</td></tr>
+                    <tr><td colspan="9" class="stock-empty">Aucun mouvement enregistré.</td></tr>
                 {% endfor %}
                 </tbody>
             </table>
@@ -293,11 +294,12 @@
 
 <template id="stockMovementTemplate">
     <form class="stock-form stock-form-grid" method="POST" action="/stock/mouvements/add">
-        <div class="stock-form-group full"><label>Article *</label><select name="article_id" required><option value=""></option>{% for a in articles_all if a.actif %}<option value="{{ a.id }}">{{ a.reference }} — {{ a.designation }} ({{ a.stock_physique }} {{ a.unite }})</option>{% endfor %}</select></div>
+        <div class="stock-form-group full"><label>Article *</label><select name="article_id" required><option value=""></option>{% for a in articles_all if a.actif %}<option value="{{ a.id }}" data-prix-unitaire="{{ a.prix_unitaire }}">{{ a.reference }} — {{ a.designation }} ({{ a.stock_physique }} {{ a.unite }})</option>{% endfor %}</select></div>
         <div class="stock-form-group"><label>Type *</label><select name="type_mouvement" required>{% if session.get('role') == 'admin' %}<option value="entree">Entrée</option><option value="sortie">Sortie</option><option value="correction">Correction</option><option value="retour">Retour</option>{% else %}<option value="sortie">Sortie</option><option value="retour">Retour</option>{% endif %}</select></div>
         {% if session.get('role') == 'admin' %}<div class="stock-form-group"><label>Sens correction</label><select name="signe"><option value="+">+ Ajouter</option><option value="-">− Retirer</option></select></div>{% endif %}
-        <div class="stock-form-group"><label>Quantité *</label><input type="number" step="0.001" min="0.001" name="quantite" required></div>
-        <div class="stock-form-group"><label>Prix unitaire (€)</label><input type="number" step="0.01" min="0" name="prix_unitaire"></div>
+        <div class="stock-form-group"><label>Quantité *</label><input id="stockMovementQuantity" type="number" step="0.001" min="0.001" name="quantite" required></div>
+        <div class="stock-form-group"><label>Prix unitaire (€)</label><input id="stockMovementUnitPrice" type="number" step="0.01" min="0" name="prix_unitaire"></div>
+        <div class="stock-form-group full"><label>Prix total (€)</label><input id="stockMovementTotalPrice" type="text" value="0,00 €" readonly aria-readonly="true"><div class="stock-muted">Calcul automatique : quantité × prix unitaire.</div></div>
         <div class="stock-form-group full"><label>Intervention liée</label><select name="intervention_id"><option value="">Aucune</option>{% for i in interventions_stock %}<option value="{{ i[0] }}">#{{ i[0] }} — {{ i[1] }} — {{ i[5] }} — {{ i[6] }}</option>{% endfor %}</select></div>
         <div class="stock-form-group full"><label>Motif</label><textarea name="motif"></textarea></div>
         <div class="stock-form-actions"><button type="button" class="stock-btn-secondary" onclick="closeDrawer()">Annuler</button><button type="submit">Enregistrer le mouvement</button></div>
@@ -305,6 +307,47 @@
 </template>
 
 <script>
+// STOCK_MOVEMENT_AUTO_PRICE
+function initStockMovementPrice() {
+    const body = document.getElementById("drawerBody");
+    const form = body ? body.querySelector('form[action="/stock/mouvements/add"]') : null;
+    if (!form) return;
+
+    const articleSelect = form.querySelector('[name="article_id"]');
+    const quantityInput = form.querySelector('[name="quantite"]');
+    const unitPriceInput = form.querySelector('[name="prix_unitaire"]');
+    const totalInput = form.querySelector('#stockMovementTotalPrice');
+    if (!articleSelect || !quantityInput || !unitPriceInput || !totalInput) return;
+
+    const updateTotal = () => {
+        const quantity = Number(String(quantityInput.value || "0").replace(",", "."));
+        const unitPrice = Number(String(unitPriceInput.value || "0").replace(",", "."));
+        const total = Number.isFinite(quantity) && Number.isFinite(unitPrice)
+            ? Math.max(0, quantity) * Math.max(0, unitPrice)
+            : 0;
+        totalInput.value = total.toLocaleString("fr-FR", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        }) + " €";
+    };
+
+    const loadArticlePrice = () => {
+        const option = articleSelect.options[articleSelect.selectedIndex];
+        if (option && option.dataset.prixUnitaire !== undefined && option.value) {
+            const price = Number(String(option.dataset.prixUnitaire || "0").replace(",", "."));
+            unitPriceInput.value = Number.isFinite(price) ? price.toFixed(2) : "0.00";
+        } else if (!option || !option.value) {
+            unitPriceInput.value = "";
+        }
+        updateTotal();
+    };
+
+    articleSelect.addEventListener("change", loadArticlePrice);
+    quantityInput.addEventListener("input", updateTotal);
+    unitPriceInput.addEventListener("input", updateTotal);
+    loadArticlePrice();
+}
+
 function openStockDrawer(kind) {
     const map = {
         article: ["Nouvel article", "stockArticleTemplate"],
@@ -319,6 +362,7 @@ function openStockDrawer(kind) {
     if (!template) return;
     document.getElementById("drawerTitle").textContent = cfg[0];
     document.getElementById("drawerBody").innerHTML = template.innerHTML;
+    if (kind === "movement") initStockMovementPrice();
     document.getElementById("drawer").classList.add("open");
 }
 </script>
