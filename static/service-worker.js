@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gmao-pro-shell-v1';
+const CACHE_NAME = 'gmao-pro-shell-v2';
 const STATIC_ASSETS = [
     '/static/mobile-pwa.css',
     '/static/mobile-pwa.js',
