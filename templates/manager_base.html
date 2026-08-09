@@ -15,7 +15,13 @@
         <a href="/manager" class="manager-brand"><span>⚙</span><strong>GMAO Pro</strong><em>Manager</em></a>
         <div class="manager-user">
             <span>👤 {{ session.get('username', 'Manager') }}</span>
-            <span class="manager-readonly">Lecture seule</span>
+            {% if session.get('role') == 'admin' %}
+                <span class="manager-readonly">Administrateur · droits complets</span>
+                <a href="/">Vue opérationnelle</a>
+                <a href="/users">Utilisateurs</a>
+            {% else %}
+                <span class="manager-readonly">Lecture seule</span>
+            {% endif %}
             <a href="/logout">Déconnexion</a>
         </div>
     </div>
