@@ -1,133 +1,217 @@
 {% extends "base.html" %}
 {% block content %}
+<link rel="stylesheet" href="/static/machine-dossier.css">
 
-<h1>{{ equipement.nom }}</h1>
-<div style="margin-bottom:20px; display:flex; gap:15px;">
-    <a href="/equipements" class="btn-secondary">
-        ← Retour
-    </a>
+<div class="machine-dossier" data-machine-dossier data-equipment-id="{{ equipement.id }}">
+    <section class="machine-hero">
+        <div class="machine-identity">
+            {% if equipement.photo %}
+                <img src="/{{ equipement.photo }}" class="machine-photo" alt="Photo de {{ equipement.nom }}">
+            {% else %}
+                <div class="machine-photo machine-photo-placeholder" aria-hidden="true">⚙</div>
+            {% endif %}
 
-    <a href="/modifier_equipement/{{ equipement.id }}" class="btn-primary">
-        Modifier
-    </a>
-</div>
-<div class="card large-card equipment-showcase">
-
-{% if equipement.photo %}
-<img src="/{{ equipement.photo }}" class="equipment-hero-image" alt="Photo de {{ equipement.nom }}">
-{% endif %}
-
-<div class="equipment-slide-shell" data-equipment-slider>
-    <button type="button" class="equipment-slide-control prev" data-slide-prev aria-label="Slide précédent">←</button>
-    <button type="button" class="equipment-slide-control next" data-slide-next aria-label="Slide suivant">→</button>
-
-    <div class="equipment-slide-track" data-slide-track>
-        <section class="equipment-slide-panel active">
-            <p class="equipment-slide-subtitle">Identité</p>
-            <h2>Vue d'ensemble</h2>
-            <div class="equipment-data-grid">
-                <article class="equipment-data-item">
-                    <span class="equipment-label">Code</span>
-                    <p>{{ equipement.code or "—" }}</p>
-                </article>
-                <article class="equipment-data-item">
-                    <span class="equipment-label">Type</span>
-                    <p>{{ equipement.type or "—" }}</p>
-                </article>
-                <article class="equipment-data-item">
-                    <span class="equipment-label">Statut</span>
-                    <p><span class="equipment-status-pill">{{ equipement.statut or "—" }}</span></p>
-                </article>
-                <article class="equipment-data-item">
-                    <span class="equipment-label">Client</span>
-                    <p>{{ equipement.client_nom or "—" }}</p>
-                </article>
+            <div>
+                <p class="machine-eyebrow">Dossier machine numérique</p>
+                <h1 class="machine-title">{{ equipement.nom }}</h1>
+                <p class="machine-subtitle">
+                    {{ equipement.fabricant or "Fabricant non renseigné" }}
+                    {% if equipement.modele %} · {{ equipement.modele }}{% endif %}
+                    {% if equipement.numero_serie %} · S/N {{ equipement.numero_serie }}{% endif %}
+                </p>
+                <div class="machine-meta">
+                    <span>{{ equipement.client_nom or "Sans client" }}</span>
+                    <span>{{ equipement.emplacement or "Emplacement non renseigné" }}</span>
+                    <span>{{ equipement.code or "Sans code" }}</span>
+                    <span class="machine-status">{{ equipement.statut or "—" }}</span>
+                </div>
             </div>
-        </section>
+        </div>
 
-        <section class="equipment-slide-panel">
-            <p class="equipment-slide-subtitle">Référentiel</p>
-            <h2>Caractéristiques techniques</h2>
-            <div class="equipment-data-grid">
-                <article class="equipment-data-item">
-                    <span class="equipment-label">Emplacement</span>
-                    <p>{{ equipement.emplacement or "—" }}</p>
-                </article>
-                <article class="equipment-data-item">
-                    <span class="equipment-label">Fabricant</span>
-                    <p>{{ equipement.fabricant or "—" }}</p>
-                </article>
-                <article class="equipment-data-item">
-                    <span class="equipment-label">Modèle</span>
-                    <p>{{ equipement.modele or "—" }}</p>
-                </article>
-                <article class="equipment-data-item">
-                    <span class="equipment-label">N° Série</span>
-                    <p>{{ equipement.numero_serie or "—" }}</p>
-                </article>
-            </div>
-        </section>
+        <div class="machine-actions">
+            <a href="/equipements" class="btn-secondary">← Équipements</a>
+            {% if session.get('role') in ['admin', 'technician'] %}
+                <a href="/modifier_equipement/{{ equipement.id }}" class="btn-primary">Modifier le dossier</a>
+            {% endif %}
+        </div>
+    </section>
 
-        <section class="equipment-slide-panel">
-            <p class="equipment-slide-subtitle">Suivi</p>
-            <h2>Installation & documents</h2>
-            <div class="equipment-data-grid single-column">
-                <article class="equipment-data-item">
-                    <span class="equipment-label">Date d'installation</span>
-                    <p>{{ equipement.date_installation or "—" }}</p>
-                </article>
-            </div>
+    <section class="machine-kpis" aria-label="Indicateurs machine">
+        <article class="machine-kpi">
+            <span class="machine-kpi-label">Disponibilité</span>
+            <span class="machine-kpi-value" data-kpi-availability>…</span>
+            <span class="machine-kpi-note">30 derniers jours</span>
+        </article>
+        <article class="machine-kpi">
+            <span class="machine-kpi-label">Temps d'arrêt</span>
+            <span class="machine-kpi-value" data-kpi-downtime>…</span>
+            <span class="machine-kpi-note">30 derniers jours</span>
+        </article>
+        <article class="machine-kpi">
+            <span class="machine-kpi-label">Interventions</span>
+            <span class="machine-kpi-value" data-kpi-interventions>…</span>
+            <span class="machine-kpi-note">Historique total</span>
+        </article>
+        <article class="machine-kpi">
+            <span class="machine-kpi-label">En cours / prévues</span>
+            <span class="machine-kpi-value" data-kpi-open>…</span>
+            <span class="machine-kpi-note">Charge maintenance</span>
+        </article>
+        <article class="machine-kpi">
+            <span class="machine-kpi-label">Pannes ouvertes</span>
+            <span class="machine-kpi-value" data-kpi-failures>…</span>
+            <span class="machine-kpi-note">À traiter</span>
+        </article>
+        <article class="machine-kpi">
+            <span class="machine-kpi-label">Coût pièces</span>
+            <span class="machine-kpi-value" data-kpi-cost>…</span>
+            <span class="machine-kpi-note">Consommations enregistrées</span>
+        </article>
+    </section>
 
-            <div class="equipment-docs-section">
-                <h3>Documents</h3>
-                {% if documents %}
-                <ul class="equipment-doc-list">
-                {% for doc in documents %}
-                    <li>
-                        <a href="/{{ doc.filepath }}" target="_blank" rel="noopener">{{ doc.filename }}</a>
-                    </li>
-                {% endfor %}
-                </ul>
-                {% else %}
-                    <p class="equipment-empty-docs">Aucun document disponible.</p>
+    <nav class="machine-tabs" aria-label="Sections du dossier machine">
+        <button type="button" class="machine-tab active" data-machine-tab="overview">Vue d'ensemble</button>
+        <button type="button" class="machine-tab" data-machine-tab="technical">Technique</button>
+        <button type="button" class="machine-tab" data-machine-tab="maintenance">Maintenance</button>
+        <button type="button" class="machine-tab" data-machine-tab="failures">Pannes</button>
+        <button type="button" class="machine-tab" data-machine-tab="parts">Pièces</button>
+        <button type="button" class="machine-tab" data-machine-tab="documents">Documents</button>
+        <button type="button" class="machine-tab" data-machine-tab="history">Historique</button>
+        <button type="button" class="machine-tab" data-machine-tab="structure">Structure machine</button>
+    </nav>
+
+    <div class="machine-loader" data-machine-loading>Chargement des données machine…</div>
+
+    <section class="machine-panel active" data-machine-panel="overview">
+        <div class="machine-grid">
+            <article class="machine-card third">
+                <h3>Dernière panne</h3>
+                <div class="machine-highlight" data-machine-last-failure>
+                    <strong>Chargement…</strong>
+                </div>
+            </article>
+            <article class="machine-card third">
+                <h3>Prochaine maintenance</h3>
+                <div class="machine-highlight" data-machine-next-maintenance>
+                    <strong>Chargement…</strong>
+                </div>
+            </article>
+            <article class="machine-card third">
+                <h3>Rapports disponibles</h3>
+                <div class="machine-highlight">
+                    <strong><span data-report-count>…</span> rapport(s)</strong>
+                    <span class="machine-muted">Rapports d'intervention liés à cette machine.</span>
+                </div>
+            </article>
+
+            <article class="machine-card full">
+                <div class="machine-card-head">
+                    <h2>Identité machine</h2>
+                    <span class="machine-badge">Référentiel</span>
+                </div>
+                <div class="machine-data-list">
+                    <div class="machine-data-row"><span>Nom</span><span>{{ equipement.nom or "—" }}</span></div>
+                    <div class="machine-data-row"><span>Code</span><span>{{ equipement.code or "—" }}</span></div>
+                    <div class="machine-data-row"><span>Client</span><span>{{ equipement.client_nom or "—" }}</span></div>
+                    <div class="machine-data-row"><span>Emplacement</span><span>{{ equipement.emplacement or "—" }}</span></div>
+                    <div class="machine-data-row"><span>Type</span><span>{{ equipement.type or "—" }}</span></div>
+                    <div class="machine-data-row"><span>Statut</span><span>{{ equipement.statut or "—" }}</span></div>
+                </div>
+            </article>
+        </div>
+    </section>
+
+    <section class="machine-panel" data-machine-panel="technical">
+        <div class="machine-grid">
+            <article class="machine-card full">
+                <div class="machine-card-head">
+                    <h2>Caractéristiques techniques</h2>
+                    {% if session.get('role') in ['admin', 'technician'] %}
+                        <a href="/modifier_equipement/{{ equipement.id }}">Modifier</a>
+                    {% endif %}
+                </div>
+                <div class="machine-data-list">
+                    <div class="machine-data-row"><span>Fabricant</span><span>{{ equipement.fabricant or "—" }}</span></div>
+                    <div class="machine-data-row"><span>Modèle</span><span>{{ equipement.modele or "—" }}</span></div>
+                    <div class="machine-data-row"><span>Numéro de série</span><span>{{ equipement.numero_serie or "—" }}</span></div>
+                    <div class="machine-data-row"><span>Type</span><span>{{ equipement.type or "—" }}</span></div>
+                    <div class="machine-data-row"><span>Date d'installation</span><span>{{ equipement.date_installation or "—" }}</span></div>
+                    <div class="machine-data-row"><span>Emplacement</span><span>{{ equipement.emplacement or "—" }}</span></div>
+                </div>
+            </article>
+            <article class="machine-card full">
+                <div class="machine-phase2">
+                    <strong>Prochaine évolution : caractéristiques dynamiques</strong>
+                    Les caractéristiques spécifiques à chaque famille de machine (CN, puissance, courses, broche, alimentation, pression, logiciel, réseau…) seront ajoutées ici sans multiplier les colonnes de la table équipements.
+                </div>
+            </article>
+        </div>
+    </section>
+
+    <section class="machine-panel" data-machine-panel="maintenance">
+        <article class="machine-card full">
+            <div class="machine-card-head"><h2>Interventions machine</h2><a href="/interventions">Ouvrir le planning</a></div>
+            <div data-machine-interventions><div class="machine-empty">Chargement des interventions…</div></div>
+        </article>
+    </section>
+
+    <section class="machine-panel" data-machine-panel="failures">
+        <article class="machine-card full">
+            <div class="machine-card-head"><h2>Historique des pannes</h2><a href="/declarations">Toutes les déclarations</a></div>
+            <div data-machine-failures><div class="machine-empty">Chargement des pannes…</div></div>
+        </article>
+    </section>
+
+    <section class="machine-panel" data-machine-panel="parts">
+        <article class="machine-card full">
+            <div class="machine-card-head"><h2>Pièces utilisées sur la machine</h2><a href="/stock">Ouvrir le stock</a></div>
+            <div data-machine-parts><div class="machine-empty">Chargement des consommations…</div></div>
+        </article>
+    </section>
+
+    <section class="machine-panel" data-machine-panel="documents">
+        <article class="machine-card full">
+            <div class="machine-card-head">
+                <h2>Documents machine</h2>
+                {% if session.get('role') in ['admin', 'technician'] %}
+                    <a href="/modifier_equipement/{{ equipement.id }}">Ajouter un document</a>
                 {% endif %}
             </div>
-        </section>
-    </div>
+            {% if documents %}
+                <div class="machine-docs">
+                    {% for doc in documents %}
+                        <a class="machine-doc" href="/{{ doc.filepath }}" target="_blank" rel="noopener">
+                            <span aria-hidden="true">📄</span>
+                            <span>{{ doc.filename }}</span>
+                        </a>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="machine-empty">Aucun document n'est encore rattaché à cette machine.</div>
+            {% endif %}
+        </article>
+    </section>
 
-    <div class="equipment-slide-dots" data-slide-dots>
-        <button class="active" aria-label="Aller au slide 1"></button>
-        <button aria-label="Aller au slide 2"></button>
-        <button aria-label="Aller au slide 3"></button>
-    </div>
+    <section class="machine-panel" data-machine-panel="history">
+        <article class="machine-card full">
+            <h2>Journal de vie de la machine</h2>
+            <p class="machine-muted">Cette chronologie est générée automatiquement à partir des pannes, interventions, rapports et mouvements de pièces.</p>
+            <div data-machine-timeline><div class="machine-empty">Construction de l'historique…</div></div>
+        </article>
+    </section>
+
+    <section class="machine-panel" data-machine-panel="structure">
+        <div class="machine-grid">
+            <article class="machine-card full">
+                <h2>Arborescence technique</h2>
+                <div class="machine-phase2">
+                    <strong>Étape 2 du Dossier Machine Numérique</strong>
+                    La machine pourra être découpée en sous-ensembles et composants (broche, axes, hydraulique, convoyeur, capteurs…), auxquels nous rattacherons ensuite les pannes, pièces et documents.
+                </div>
+            </article>
+        </div>
+    </section>
 </div>
 
-</div>
-
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-    const slider = document.querySelector("[data-equipment-slider]");
-    if (!slider) return;
-
-    const track = slider.querySelector("[data-slide-track]");
-    const slides = Array.from(track.querySelectorAll(".equipment-slide-panel"));
-    const dots = Array.from(slider.querySelectorAll("[data-slide-dots] button"));
-    const next = slider.querySelector("[data-slide-next]");
-    const prev = slider.querySelector("[data-slide-prev]");
-
-    let index = 0;
-
-    function renderSlide(newIndex) {
-        index = (newIndex + slides.length) % slides.length;
-        track.style.transform = `translateX(-${index * 100}%)`;
-        slides.forEach((slide, i) => slide.classList.toggle("active", i === index));
-        dots.forEach((dot, i) => dot.classList.toggle("active", i === index));
-    }
-
-    next.addEventListener("click", () => renderSlide(index + 1));
-    prev.addEventListener("click", () => renderSlide(index - 1));
-    dots.forEach((dot, i) => dot.addEventListener("click", () => renderSlide(i)));
-});
-</script>
-
+<script src="/static/machine-dossier.js"></script>
 {% endblock %}
