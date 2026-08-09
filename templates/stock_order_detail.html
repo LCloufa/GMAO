@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="stock-page">
+  <div class="stock-header">
+    <div><h1>🧾 {{ order[1] }}</h1><p>{{ order[3] }} · créée le {{ order[11] }} · <strong>{{ order[4] }}</strong></p></div>
+    <div class="stock-header-actions"><a class="stock-btn-secondary" href="/stock/achats">← Commandes</a><a class="stock-btn-secondary" href="/stock/achats/{{ order[0] }}/pdf">Télécharger PDF</a><button class="stock-btn-secondary" type="button" onclick="window.print()">Imprimer</button>{% if order[16] %}<a class="stock-btn-secondary" href="mailto:{{ order[16] }}?subject=Bon%20de%20commande%20{{ order[1] }}">Préparer l'e-mail</a>{% endif %}</div>
+  </div>
+
+  <div class="stock-kpis">
+    <div class="stock-kpi"><div class="stock-kpi-label">Sous-total HT</div><div class="stock-kpi-value">{{ "%.2f"|format(totals.subtotal_ht) }} €</div></div>
+    <div class="stock-kpi"><div class="stock-kpi-label">Port HT</div><div class="stock-kpi-value">{{ "%.2f"|format(totals.shipping_ht) }} €</div></div>
+    <div class="stock-kpi"><div class="stock-kpi-label">TVA</div><div class="stock-kpi-value">{{ "%.2f"|format(totals.vat) }} €</div></div>
+    <div class="stock-kpi stock-kpi-success"><div class="stock-kpi-label">Total TTC</div><div class="stock-kpi-value">{{ "%.2f"|format(totals.total_ttc) }} €</div></div>
+  </div>
+
+  <section class="stock-panel">
+    <div class="stock-panel-head"><div><h2>Informations</h2><div class="stock-muted">Livraison souhaitée : {{ order[6] or '-' }} · créateur : {{ order[12] }} · validateur : {{ order[13] }}</div></div></div>
+    <div class="stock-form stock-form-grid">
+      <div class="stock-form-group full"><label>Adresse de livraison</label><div>{{ order[7] or '-' }}</div></div>
+      <div class="stock-form-group full"><label>Observations / conditions</label><div>{{ order[10] or '-' }}</div></div>
+    </div>
+  </section>
+
+  {% if order[4] in ['draft','pending_approval'] %}
+  <section class="stock-panel">
+    <div class="stock-panel-head"><div><h2>Ajouter un article</h2><div class="stock-muted">Les informations du fournisseur sélectionné sont reprises automatiquement lorsqu'elles existent.</div></div></div>
+    <form class="stock-form stock-form-grid" method="POST" action="/stock/achats/{{ order[0] }}/line">
+      <div class="stock-form-group full"><label>Article *</label><select name="article_id" required><option value="">Sélectionner...</option>{% for a in articles %}<option value="{{ a.id }}">{{ a.reference }} — {{ a.designation }} · stock {{ a.available }} · fournisseur préféré {{ a.supplier_name or '-' }}</option>{% endfor %}</select></div>
+      <div class="stock-form-group"><label>Quantité *</label><input type="number" name="quantity" min="0.001" step="0.001" required></div>
+      <div class="stock-form-group"><label>Prix unitaire HT</label><input type="number" name="unit_price" min="0" step="0.01"></div>
+      <div class="stock-form-group"><label>Référence fournisseur</label><input name="supplier_reference"></div>
+      <div class="stock-form-group"><label>Délai (jours)</label><input type="number" min="0" name="lead_days"></div>
+      <div class="stock-form-group"><label>Remise (%)</label><input type="number" min="0" max="100" step="0.01" name="discount_percent" value="0"></div>
+      <div class="stock-form-group"><label>TVA (%)</label><input type="number" min="0" step="0.01" name="vat_percent" value="20"></div>
+      <div class="stock-form-actions"><button type="submit">Ajouter la ligne</button></div>
+    </form>
+  </section>
+  {% endif %}
+
+  <section class="stock-panel">
+    <div class="stock-panel-head"><div><h2>Lignes de commande</h2><div class="stock-muted">Une réception génère automatiquement une entrée dans les mouvements de stock.</div></div></div>
+    <div class="stock-table-wrap"><table class="stock-table"><thead><tr><th>Article</th><th>Réf. fournisseur</th><th>Commandé</th><th>Reçu</th><th>Reste</th><th>PU HT</th><th>Remise</th><th>TVA</th><th>Délai</th><th>Réception</th></tr></thead><tbody>
+      {% for l in lines %}<tr><td><strong>{{ l[1] }}</strong><div class="stock-muted">{{ l[2] }}</div></td><td>{{ l[3] or '-' }}</td><td>{{ l[4] }} {{ l[11] }}</td><td>{{ l[5] }}</td><td><strong>{{ l[4]-l[5] }}</strong></td><td>{{ "%.2f"|format(l[6]) }} €</td><td>{{ l[7] }}%</td><td>{{ l[8] }}%</td><td>{{ l[9] or '-' }} j</td><td>{% if order[4] in ['approved','ordered','partially_received'] and l[5] < l[4] %}<form class="stock-inline-form" method="POST" action="/stock/achats/{{ order[0] }}/receive/{{ l[0] }}"><input type="number" name="quantity" min="0.001" max="{{ l[4]-l[5] }}" step="0.001" required placeholder="Qté"><button type="submit" onclick="return confirm('Valider cette réception et entrer les pièces en stock ?')">Réceptionner</button></form>{% else %}-{% endif %}</td></tr>
+      {% else %}<tr><td colspan="10" class="stock-empty">Aucune ligne.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+
+  {% if linked_requests %}<section class="stock-panel"><div class="stock-panel-head"><h2>Demandes d'achat liées</h2></div><div class="stock-table-wrap"><table class="stock-table"><thead><tr><th>#</th><th>Besoin</th><th>Qté</th><th>Priorité</th><th>Intervention</th></tr></thead><tbody>{% for r in linked_requests %}<tr><td>#{{ r[0] }}</td><td>{{ r[1] }}</td><td>{{ r[2] }}</td><td>{{ r[3] }}</td><td>{{ r[4] }}</td></tr>{% endfor %}</tbody></table></div></section>{% endif %}
+
+  <section class="stock-panel"><div class="stock-panel-head"><h2>Workflow</h2></div><div class="stock-header-actions">
+    {% if order[4]=='draft' %}<form method="POST" action="/stock/achats/{{ order[0] }}/submit"><button type="submit">Envoyer à validation</button></form>{% endif %}
+    {% if session.get('role')=='admin' and order[4] in ['draft','pending_approval'] %}<form method="POST" action="/stock/achats/{{ order[0] }}/approve"><button type="submit">Valider la commande</button></form>{% endif %}
+    {% if order[4]=='approved' %}<form method="POST" action="/stock/achats/{{ order[0] }}/mark-ordered"><button type="submit">Marquer comme commandée</button></form>{% endif %}
+    {% if session.get('role')=='admin' and order[4]=='received' %}<form method="POST" action="/stock/achats/{{ order[0] }}/close"><button type="submit">Clôturer</button></form>{% endif %}
+    {% if session.get('role')=='admin' and order[4] not in ['received','closed','cancelled'] %}<form method="POST" action="/stock/achats/{{ order[0] }}/cancel"><button class="stock-btn-secondary" type="submit" onclick="return confirm('Annuler cette commande ?')">Annuler</button></form>{% endif %}
+  </div></section>
+</div>
+{% endblock %}
