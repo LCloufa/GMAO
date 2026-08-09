@@ -2,6 +2,41 @@
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
     let deferredInstallPrompt = null;
 
+    function installBrandAssets() {
+        const brandMark = document.querySelector('.tabs-brand-mark');
+        if (brandMark) {
+            const image = document.createElement('img');
+            image.src = '/static/brand-logo.png?v=3';
+            image.alt = 'GMAO Pro';
+            image.width = 34;
+            image.height = 34;
+            image.style.width = '100%';
+            image.style.height = '100%';
+            image.style.display = 'block';
+            image.style.objectFit = 'cover';
+            image.style.borderRadius = 'inherit';
+            brandMark.replaceChildren(image);
+            brandMark.style.background = 'transparent';
+            brandMark.style.color = 'transparent';
+        }
+
+        const favicon = document.querySelector('link[rel="icon"]');
+        if (favicon) {
+            favicon.href = '/static/app-icon-192.png?v=3';
+            favicon.type = 'image/png';
+        }
+
+        const appleIcon = document.querySelector('link[rel="apple-touch-icon"]');
+        if (appleIcon) {
+            appleIcon.href = '/static/app-icon-180.png?v=3';
+        }
+
+        const manifest = document.querySelector('link[rel="manifest"]');
+        if (manifest) {
+            manifest.href = '/static/manifest.webmanifest?v=3';
+        }
+    }
+
     function closeMobileMore() {
         document.getElementById('mobileMoreSheet')?.classList.remove('open');
         document.getElementById('mobileMoreBackdrop')?.classList.remove('open');
@@ -122,6 +157,7 @@
     }
 
     function initEnhancements() {
+        installBrandAssets();
         installStockPurchaseShortcuts();
         installStockResetOption();
     }
