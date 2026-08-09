@@ -83,10 +83,53 @@
         actions.appendChild(wrap);
     }
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', installStockPurchaseShortcuts);
-    } else {
+    const STOCK_RESET_WARNING = "Supprime définitivement tout le périmètre Stock/Achats : articles, catégories, emplacements, mouvements, réservations, consommations liées aux interventions, fournisseurs, associations article/fournisseur, paramètres achats, demandes d'achat, bons de commande, lignes et réceptions. Les interventions, rapports, équipements, clients, techniciens et utilisateurs sont conservés.";
+
+    function installStockResetOption() {
+        const select = document.getElementById('adminResetTarget');
+        const form = document.getElementById('adminResetForm');
+        const warning = document.getElementById('adminResetWarning');
+        if (!select || !form || !warning) return;
+        if (select.querySelector('option[value="stock"]')) return;
+
+        const option = document.createElement('option');
+        option.value = 'stock';
+        option.textContent = 'Stock complet + fournisseurs + achats/commandes';
+        select.appendChild(option);
+
+        select.addEventListener('change', () => {
+            if (select.value === 'stock') {
+                warning.textContent = STOCK_RESET_WARNING;
+            }
+        });
+
+        // Le contrôle global historique possède sa propre confirmation. Pour
+        // la nouvelle cible stock, on intercepte uniquement cette soumission
+        // afin d'afficher le bon avertissement au lieu d'un message générique.
+        form.addEventListener('submit', (event) => {
+            if (select.value !== 'stock') return;
+
+            event.preventDefault();
+            event.stopImmediatePropagation();
+
+            const confirmed = window.confirm(
+                `Confirmer la réinitialisation de : ${option.textContent} ?\n\n${STOCK_RESET_WARNING}\n\nCette action est irréversible.`
+            );
+            if (confirmed) {
+                HTMLFormElement.prototype.submit.call(form);
+            }
+        }, true);
+    }
+
+    function initEnhancements() {
         installStockPurchaseShortcuts();
+        installStockResetOption();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initEnhancements);
+    } else {
+        initEnhancements();
     }
 
     if ('serviceWorker' in navigator) {

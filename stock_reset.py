@@ -74,4 +74,4 @@ def register_stock_reset(app):
         session.pop("stock_reviewed_interventions", None)
         session.modified = True
 
-        return redirect("/users?reset_done=stock")
+        return redirect("/?reset_done=stock")
