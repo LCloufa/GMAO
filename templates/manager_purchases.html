@@ -1,0 +1,15 @@
+{% extends "manager_base.html" %}
+{% block content %}
+<div class="manager-page-head"><div><h1>Achats & fournisseurs</h1><p>Engagements, commandes en cours, retards et performance fournisseurs. Vue strictement consultative.</p></div><span class="manager-readonly">Lecture seule</span></div>
+<div class="manager-kpis">
+<div class="manager-kpi"><div class="manager-kpi-label">Montant engagé</div><div class="manager-kpi-value">{{ "%.0f"|format(committed) }} €</div></div>
+<div class="manager-kpi"><div class="manager-kpi-label">Commandes en cours</div><div class="manager-kpi-value">{{ open_orders }}</div></div>
+<div class="manager-kpi"><div class="manager-kpi-label">Commandes en retard</div><div class="manager-kpi-value">{{ late_orders }}</div></div>
+<div class="manager-kpi"><div class="manager-kpi-label">Délai moyen constaté</div><div class="manager-kpi-value">{% if avg_lead is not none %}{{ avg_lead }} j{% else %}-{% endif %}</div></div>
+<div class="manager-kpi"><div class="manager-kpi-label">Demandes à traiter</div><div class="manager-kpi-value">{{ pending_requests }}</div></div>
+</div>
+<div class="manager-grid">
+<section class="manager-card manager-span-8"><div class="manager-card-head"><h2>Commandes fournisseurs</h2><span class="manager-muted">250 dernières</span></div><div class="manager-table-wrap"><table class="manager-table"><thead><tr><th>N°</th><th>Fournisseur</th><th>Date</th><th>Livraison</th><th>Montant HT</th><th>Reste à recevoir</th><th>Statut</th></tr></thead><tbody>{% for o in orders %}<tr><td><strong>{{ o[1] }}</strong></td><td>{{ o[2] }}</td><td>{{ o[4] }}</td><td>{{ o[5] or '-' }}</td><td>{{ "%.2f"|format(o[6] or 0) }} €</td><td>{{ o[7] }}</td><td><span class="manager-badge">{{ o[3] }}</span></td></tr>{% else %}<tr><td colspan="7" class="manager-empty">Aucune commande.</td></tr>{% endfor %}</tbody></table></div></section>
+<section class="manager-card manager-span-4"><div class="manager-card-head"><h2>Dépenses par fournisseur</h2></div>{% for s in suppliers %}<div class="manager-summary-line"><span><strong>{{ s[0] }}</strong><br><span class="manager-muted">{{ s[2] }} commande(s)</span></span><strong>{{ "%.2f"|format(s[1] or 0) }} €</strong></div>{% else %}<div class="manager-empty">Aucun achat validé.</div>{% endfor %}</section>
+</div>
+{% endblock %}
