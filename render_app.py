@@ -28,10 +28,13 @@ _use_psycopg3_driver()
 
 from app import app, ensure_upload_dirs, init_db
 from manager_features import register_manager_features
+from manager_registration import register_account_role_creation
 
 
-# Enregistre le profil Manager et ses vues de pilotage avant le premier appel HTTP.
+# Enregistre le profil Manager, ses vues de pilotage et sa création par clé
+# avant le premier appel HTTP.
 register_manager_features(app)
+register_account_role_creation(app)
 
 # Prépare les dossiers d'upload et crée uniquement les tables manquantes.
 # Ces opérations sont idempotentes et ne suppriment aucune donnée existante.
