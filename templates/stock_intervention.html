@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 
-{% set stock_locked = (intervention[2]|string|lower) == 'completed' %}
+{% set stock_locked = (intervention[2]|string|lower) == 'completed' or request.args.get('locked') == '1' %}
 
 <div class="stock-page">
     <section class="stock-panel stock-intervention-hero">
@@ -19,7 +19,7 @@
         <div class="stock-error-box">Stock insuffisant pour cette opération.</div>
     {% endif %}
 
-    {% if stock_locked or request.args.get('locked') == '1' %}
+    {% if stock_locked %}
         <div class="stock-error-box" style="border-color:#cbd5e1;background:#f8fafc;color:#334155;">
             🔒 Le rapport a été soumis. Les pièces liées à cette intervention sont désormais verrouillées en lecture seule.
         </div>
@@ -114,7 +114,7 @@
                 <div class="stock-muted">Une fois le rapport soumis, cette liste de pièces sera définitivement verrouillée.</div>
             </div>
         </div>
-        <button class="btn-success" style="width:100%;" type="button" onclick="validateStockAndOpenReport({{ intervention[0] }}, {{ (intervention[4] or '')|tojson }})">
+        <button class="btn-success" style="width:100%;" type="button" onclick="validateStockAndOpenReport({{ intervention[0] }}, {{ ((intervention[4] or '')|string)|tojson }})">
             ✓ Pièces vérifiées → Rédiger le rapport
         </button>
     </section>
