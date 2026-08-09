@@ -79,42 +79,6 @@ def _parse_start(scheduled_date, scheduled_time) -> Optional[datetime]:
     return datetime.combine(day, clock)
 
 
-def _actual_report_interval(
-    scheduled_date,
-    scheduled_time,
-    report_created_at,
-    report_heure_debut,
-    report_heure_fin,
-) -> Tuple[Optional[datetime], Optional[datetime]]:
-    """Retourne l'intervalle d'arrêt le plus fiable disponible.
-
-    Priorité aux heures réellement saisies dans le rapport. Elles sont rattachées
-    à la date planifiée de l'intervention, qui est la date de travail disponible
-    dans le modèle actuel. En l'absence d'heures réelles complètes, on conserve le
-    comportement historique : début planifié -> première soumission du rapport.
-    """
-    planned_start = _parse_start(scheduled_date, scheduled_time)
-
-    if report_heure_fin not in (None, ""):
-        actual_start = _parse_start(
-            scheduled_date,
-            report_heure_debut if report_heure_debut not in (None, "") else scheduled_time,
-        )
-        actual_end = _parse_start(scheduled_date, report_heure_fin)
-
-        if actual_start and actual_end:
-            # Une intervention peut traverser minuit.
-            if actual_end <= actual_start:
-                actual_end += timedelta(days=1)
-            return actual_start, actual_end
-
-    report_end = _parse_datetime(report_created_at)
-    if planned_start and report_end and report_end > planned_start:
-        return planned_start, report_end
-
-    return planned_start, None
-
-
 def _slot_datetime(day: date, hhmm: str) -> datetime:
     if hhmm == "24:00":
         return datetime.combine(day + timedelta(days=1), time.min)
@@ -173,13 +137,12 @@ def working_minutes_between(start: datetime, end: datetime, rythme: str) -> int:
 def calculate_availability_metrics(conn, period_start: datetime, period_end: datetime, selected_client=None):
     """Calcule les indisponibilités réelles et les taux de disponibilité.
 
-    Pour une intervention terminée, les heures réellement saisies dans le
-    rapport (`heure_debut` / `heure_fin`) sont prioritaires. Si elles ne sont pas
-    disponibles, la fin réelle reste la première soumission du rapport. Sans
-    rapport, une intervention déjà commencée continue jusqu'à `period_end`
-    (généralement maintenant). Les temps hors rythme horaire du client ne sont
-    pas comptés. Les chevauchements d'interventions d'un même équipement sont
-    fusionnés afin de ne jamais compter deux fois la même minute.
+    Une intervention commence à sa date/heure planifiée. Sa fin réelle est la
+    première soumission de rapport. Tant qu'aucun rapport n'existe, une
+    intervention déjà commencée continue jusqu'à `period_end` (généralement
+    maintenant). Les temps hors rythme horaire du client ne sont pas comptés.
+    Les chevauchements d'interventions d'un même équipement sont fusionnés afin
+    de ne jamais compter deux fois la même minute d'indisponibilité.
     """
     cursor = conn.cursor()
 
@@ -218,16 +181,11 @@ def calculate_availability_metrics(conn, period_start: datetime, period_end: dat
                i.scheduled_date,
                i.scheduled_time,
                i.status,
-               reports.report_created_at,
-               reports.heure_debut,
-               reports.heure_fin
+               reports.report_created_at
         FROM interventions i
         JOIN equipements e ON i.equipment_id = e.id
         LEFT JOIN (
-            SELECT intervention_id,
-                   MIN(created_at) AS report_created_at,
-                   MIN(heure_debut) AS heure_debut,
-                   MIN(heure_fin) AS heure_fin
+            SELECT intervention_id, MIN(created_at) AS report_created_at
             FROM rapports_intervention
             GROUP BY intervention_id
         ) reports ON reports.intervention_id = i.id
@@ -244,44 +202,23 @@ def calculate_availability_metrics(conn, period_start: datetime, period_end: dat
     intervals_by_equipment = defaultdict(list)
 
     for row in intervention_rows:
-        (
-            _,
-            equipment_id,
-            scheduled_date,
-            scheduled_time,
-            _,
-            report_created_at,
-            report_heure_debut,
-            report_heure_fin,
-        ) = row
+        _, equipment_id, scheduled_date, scheduled_time, _, report_created_at = row
         info = equipment_info.get(equipment_id)
         if not info:
             continue
 
         _, rythme = info
-        actual_start, actual_end = _actual_report_interval(
-            scheduled_date,
-            scheduled_time,
-            report_created_at,
-            report_heure_debut,
-            report_heure_fin,
-        )
-
-        if not actual_start or actual_start >= period_end:
+        start = _parse_start(scheduled_date, scheduled_time)
+        if not start or start >= period_end:
             continue
 
-        # Sans rapport : l'arrêt reste ouvert jusqu'à maintenant / period_end.
-        if actual_end is None:
-            actual_end = period_end
-
-        if actual_end <= period_start or actual_end <= actual_start:
+        report_end = _parse_datetime(report_created_at)
+        actual_end = report_end if report_end is not None else period_end
+        if actual_end <= period_start or actual_end <= start:
             continue
 
-        clipped_start = max(actual_start, period_start)
+        clipped_start = max(start, period_start)
         clipped_end = min(actual_end, period_end)
-        if clipped_end <= clipped_start:
-            continue
-
         intervals_by_equipment[equipment_id].extend(
             working_intervals(clipped_start, clipped_end, rythme)
         )
