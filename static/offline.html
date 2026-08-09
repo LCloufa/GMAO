@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#2563eb">
+    <title>GMAO Pro - Hors connexion</title>
+    <style>
+        body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f4f7fb;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#0f172a;padding:24px;box-sizing:border-box}
+        .box{width:min(430px,100%);background:white;border:1px solid #dbe4f0;border-radius:22px;padding:28px;box-sizing:border-box;box-shadow:0 20px 60px rgba(15,23,42,.1);text-align:center}
+        .icon{width:64px;height:64px;border-radius:18px;background:#2563eb;color:white;display:grid;place-items:center;margin:0 auto 18px;font-size:30px}
+        h1{font-size:25px;margin:0 0 10px}p{color:#64748b;line-height:1.55;margin:0 0 20px}button{width:100%;min-height:48px;border:0;border-radius:13px;background:#2563eb;color:white;font-size:16px;font-weight:700}
+    </style>
+</head>
+<body>
+    <main class="box">
+        <div class="icon">⚙</div>
+        <h1>Connexion indisponible</h1>
+        <p>La GMAO a besoin d'une connexion au serveur pour afficher et modifier les données de maintenance.</p>
+        <button onclick="location.reload()">Réessayer</button>
+    </main>
+</body>
+</html>
