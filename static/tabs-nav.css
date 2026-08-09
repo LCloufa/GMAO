@@ -384,3 +384,11 @@ body.tabs-layout .drawer-header button:hover {
         font-size: 23px;
     }
 }
+
+/* Logo de marque : remplace l'emoji roue dentée sans changer le HTML existant. */
+.tabs-brand-mark {
+    font-size: 0;
+    color: transparent;
+    background: transparent url("/static/brand-logo.png") center / cover no-repeat;
+    overflow: hidden;
+}
