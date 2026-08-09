@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="stock-page">
+<div class="stock-header"><div><h1>Fournisseurs · paramètres achats</h1><p>Références internes, conditions de paiement, délais et franco de port.</p></div><div class="stock-header-actions"><a class="stock-btn-secondary" href="/stock?section=fournisseurs">Fournisseurs</a><a class="stock-btn-secondary" href="/stock/achats">Commandes</a></div></div>
+{% for s in suppliers %}
+<section class="stock-panel"><div class="stock-panel-head"><div><h2>{{ s[1] }}</h2><div class="stock-muted">{{ s[7] or '-' }} · {{ s[6] or '-' }}</div></div>{% if not s[9] %}<span class="stock-badge stock-badge-neutral">Inactif</span>{% endif %}</div>
+<form class="stock-form stock-form-grid" method="POST" action="/stock/fournisseurs/{{ s[0] }}/profile">
+<div class="stock-form-group"><label>Code fournisseur</label><input name="code_fournisseur" value="{{ s[10] or '' }}" {% if session.get('role')!='admin' %}readonly{% endif %}></div>
+<div class="stock-form-group"><label>Conditions de paiement</label><input name="conditions_paiement" value="{{ s[11] or '' }}" placeholder="30 jours fin de mois" {% if session.get('role')!='admin' %}readonly{% endif %}></div>
+<div class="stock-form-group"><label>Délai moyen (jours)</label><input type="number" min="0" name="delai_moyen_jours" value="{{ s[12] or '' }}" {% if session.get('role')!='admin' %}readonly{% endif %}></div>
+<div class="stock-form-group"><label>Franco de port (€)</label><input type="number" min="0" step="0.01" name="franco_port" value="{{ s[13] or '' }}" {% if session.get('role')!='admin' %}readonly{% endif %}></div>
+<div class="stock-form-group full"><label>Adresse de livraison par défaut</label><textarea name="adresse_livraison_defaut" {% if session.get('role')!='admin' %}readonly{% endif %}>{{ s[14] or '' }}</textarea></div>
+<div class="stock-form-group full"><label>Notes achats</label><textarea name="notes_achats" {% if session.get('role')!='admin' %}readonly{% endif %}>{{ s[15] or '' }}</textarea></div>
+{% if session.get('role')=='admin' %}<div class="stock-form-actions"><button type="submit">Enregistrer</button></div>{% endif %}
+</form></section>
+{% else %}<section class="stock-panel"><div class="stock-empty">Aucun fournisseur.</div></section>{% endfor %}
+</div>
+{% endblock %}
