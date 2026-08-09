@@ -37,6 +37,7 @@
     <th>État</th>
     <th>Auteur</th>
     <th>Date</th>
+    <th>PDF</th>
     {% if session.get('role') == 'admin' %}<th>Action</th>{% endif %}
   </tr>
   {% for r in rapports %}
@@ -49,6 +50,12 @@
     <td><span class="badge">{{ r[6] }}</span></td>
     <td>{{ r[8] }}</td>
     <td>{{ r[7] }}</td>
+    <td>
+      <a href="/rapports/{{ r[0] }}/pdf"
+         class="btn-secondary"
+         style="text-decoration:none; white-space:nowrap;"
+         onclick="event.stopPropagation();">⬇ PDF</a>
+    </td>
     {% if session.get('role') == 'admin' %}
     <td>
       <a href="/rapports/{{ r[0] }}/delete" onclick="event.stopPropagation(); return confirm('Supprimer ce rapport ?');" style="color:#dc2626;">Supprimer</a>
@@ -65,6 +72,9 @@ function openRapport(id) {
     .then(data => {
       document.getElementById('drawerTitle').innerText = 'Rapport #' + data.id;
       document.getElementById('drawerBody').innerHTML = `
+        <div style="display:flex; justify-content:flex-end; margin-bottom:12px;">
+          <a class="btn-primary" href="/rapports/${data.id}/pdf" style="text-decoration:none;">⬇ Exporter en PDF</a>
+        </div>
         <p><strong>Intervention :</strong> ${data.intervention_title || '-'}</p>
         <p><strong>Équipement :</strong> ${data.equipement_nom || '-'}</p>
         <p><strong>Auteur :</strong> ${data.auteur}</p>
