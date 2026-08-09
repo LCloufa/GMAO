@@ -1,0 +1,24 @@
+{% extends "manager_base.html" %}
+{% block content %}
+<div class="manager-page-head">
+  <div><h1>Santé du parc</h1><p>Vue consolidée des équipements et de leurs indicateurs de maintenance.</p></div>
+  <form class="manager-filter" method="GET">
+    <input type="search" name="q" value="{{ q }}" placeholder="Équipement ou client">
+    <select name="health"><option value="">Tous les états</option><option value="healthy" {% if health=='healthy' %}selected{% endif %}>Sain</option><option value="watch" {% if health=='watch' %}selected{% endif %}>À surveiller</option><option value="degraded" {% if health=='degraded' %}selected{% endif %}>Dégradé</option><option value="critical" {% if health=='critical' %}selected{% endif %}>Prioritaire</option></select>
+    <select name="client"><option value="">Tous les clients</option>{% for c in clients %}<option value="{{ c[0] }}" {% if selected_client|string==c[0]|string %}selected{% endif %}>{{ c[1] }}</option>{% endfor %}</select>
+    <button class="manager-btn">Filtrer</button>
+  </form>
+</div>
+<div class="manager-kpis">
+  <div class="manager-kpi"><div class="manager-kpi-label">Équipements</div><div class="manager-kpi-value">{{ maintenance.equipment_count }}</div></div>
+  <div class="manager-kpi"><div class="manager-kpi-label">Sains</div><div class="manager-kpi-value">{{ maintenance.health_counts.healthy }}</div></div>
+  <div class="manager-kpi"><div class="manager-kpi-label">À surveiller</div><div class="manager-kpi-value">{{ maintenance.health_counts.watch }}</div></div>
+  <div class="manager-kpi"><div class="manager-kpi-label">Dégradés</div><div class="manager-kpi-value">{{ maintenance.health_counts.degraded }}</div></div>
+  <div class="manager-kpi"><div class="manager-kpi-label">Prioritaires</div><div class="manager-kpi-value">{{ maintenance.health_counts.critical }}</div></div>
+  <div class="manager-kpi"><div class="manager-kpi-label">Disponibilité</div><div class="manager-kpi-value">{{ "%.1f"|format(maintenance.global_rate) }}%</div></div>
+</div>
+<section class="manager-card"><div class="manager-table-wrap"><table class="manager-table">
+<thead><tr><th>Équipement</th><th>Client</th><th>État GMAO</th><th>Santé</th><th>Disponibilité</th><th>Arrêt 30 j</th><th>Pannes 30 j</th><th>Ouvertes</th><th>Coût pièces</th></tr></thead>
+<tbody>{% for e in equipments %}<tr><td><strong>{{ e.name }}</strong></td><td>{{ e.client }}</td><td>{{ e.status }}</td><td><span class="manager-badge health-{{ e.health }}">{% if e.health=='healthy' %}Sain{% elif e.health=='watch' %}À surveiller{% elif e.health=='degraded' %}Dégradé{% else %}Prioritaire{% endif %}</span></td><td><strong>{{ "%.1f"|format(e.rate) }}%</strong></td><td>{{ "%.1f"|format(e.downtime_minutes / 60) }} h</td><td>{{ e.breakdowns_30d }}</td><td>{{ e.open_breakdowns }}</td><td>{{ "%.2f"|format(e.cost_30d) }} €</td></tr>{% else %}<tr><td colspan="9" class="manager-empty">Aucun équipement ne correspond aux filtres.</td></tr>{% endfor %}</tbody>
+</table></div></section>
+{% endblock %}
