@@ -15,6 +15,12 @@
     <strong>Administrateur :</strong> accès à toutes les vues Manager et conservation de tous les droits de création, modification et suppression dans les modules opérationnels de la GMAO.
 </div>
 
+{% if request.args.get('reset_done') == 'stock' %}
+<div style="margin-bottom:18px; padding:12px 14px; border-radius:10px; background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0;">
+    <strong>✓ Stock réinitialisé :</strong> articles, mouvements, réservations, consommations d’intervention, fournisseurs, paramètres achats, demandes, commandes et réceptions ont été supprimés.
+</div>
+{% endif %}
+
 <table>
     <tr>
         <th>ID</th><th>Nom</th><th>Rôle</th><th>Modifier le rôle</th><th>Action</th>
@@ -47,4 +53,40 @@
     </tr>
     {% endfor %}
 </table>
+
+<section style="margin-top:32px; padding:20px; border:1px solid #fecaca; border-radius:14px; background:#fff7f7;">
+    <h2 style="margin:0 0 8px; color:#991b1b;">⚠ Réinitialisation des données</h2>
+    <p style="margin:0 0 16px; color:#7f1d1d;">
+        Cette opération est irréversible. La cible <strong>Stock complet</strong> supprime l’intégralité du module Stock/Achats : articles, catégories, emplacements, mouvements, réservations, consommations liées aux interventions, fournisseurs, associations articles/fournisseurs, paramètres achats, demandes d’achat, bons de commande, lignes et réceptions.
+    </p>
+    <form method="POST" action="/admin/reset-data" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:0;" onsubmit="return confirmResetData(this);">
+        <select name="reset_target" required style="min-width:280px; margin:0;">
+            <option value="">Choisir les données à réinitialiser</option>
+            <option value="declarations">Déclarations de panne</option>
+            <option value="rapports">Rapports d’intervention</option>
+            <option value="interventions">Interventions</option>
+            <option value="equipements">Équipements + données liées</option>
+            <option value="stock">Stock complet + fournisseurs + achats/commandes</option>
+        </select>
+        <button class="btn-delete" type="submit">Réinitialiser la sélection</button>
+    </form>
+</section>
+
+<script>
+function confirmResetData(form) {
+    const select = form.querySelector('[name="reset_target"]');
+    const label = select.options[select.selectedIndex]?.text || 'ces données';
+    if (!select.value) return false;
+
+    const stockWarning = select.value === 'stock'
+        ? '\n\nTOUT le Stock/Achats sera vidé : articles, mouvements, réservations, fournisseurs, demandes, commandes et réceptions.'
+        : '';
+
+    return window.confirm(
+        'Confirmer la réinitialisation de : ' + label + ' ?' +
+        stockWarning +
+        '\n\nCette action est irréversible.'
+    );
+}
+</script>
 {% endblock %}

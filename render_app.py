@@ -32,15 +32,18 @@ from manager_registration import register_account_role_creation
 from stock_purchasing import register_stock_purchasing
 from stock_purchasing_extras import register_stock_purchasing_extras
 from stock_supplier_views import register_stock_supplier_views
+from stock_reset import register_stock_reset
 
 
-# Enregistre le profil Manager, les achats/approvisionnements et la création
-# des comptes avant le premier appel HTTP.
+# Enregistre le profil Manager, les achats/approvisionnements, les vues
+# fournisseurs, la remise à zéro complète du stock et la création des comptes
+# avant le premier appel HTTP.
 register_manager_features(app)
 register_account_role_creation(app)
 register_stock_purchasing(app)
 register_stock_purchasing_extras(app)
 register_stock_supplier_views(app)
+register_stock_reset(app)
 
 # Prépare les dossiers d'upload et crée uniquement les tables manquantes.
 # L'import de stock_purchasing ci-dessus déclare aussi les nouvelles tables
