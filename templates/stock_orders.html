@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="stock-page">
+  <div class="stock-header">
+    <div><h1>🧾 Commandes fournisseurs</h1><p>Bons de commande, validation, suivi de livraison et réception.</p></div>
+    <div class="stock-header-actions"><a class="stock-btn-secondary" href="/stock">Stock</a><a class="stock-btn-secondary" href="/stock/reapprovisionnement">Réapprovisionnement</a><a class="stock-btn-secondary" href="/stock/demandes-achat">Demandes d'achat</a></div>
+  </div>
+
+  <section class="stock-panel">
+    <div class="stock-panel-head"><div><h2>Nouveau bon de commande</h2><div class="stock-muted">Le bon est créé en brouillon, puis complété avec ses lignes d'articles.</div></div></div>
+    <form class="stock-form stock-form-grid" method="POST" action="/stock/achats/create">
+      <div class="stock-form-group"><label>Fournisseur *</label><select name="supplier_id" required><option value="">Sélectionner...</option>{% for s in suppliers %}<option value="{{ s[0] }}">{{ s[1] }}</option>{% endfor %}</select></div>
+      <div class="stock-form-group"><label>Livraison souhaitée</label><input type="date" name="desired_delivery_date"></div>
+      <div class="stock-form-group"><label>Frais de port HT (€)</label><input type="number" min="0" step="0.01" name="shipping_cost" value="0"></div>
+      <div class="stock-form-group"><label>Remise globale (%)</label><input type="number" min="0" max="100" step="0.01" name="global_discount_percent" value="0"></div>
+      <div class="stock-form-group full"><label>Adresse de livraison</label><textarea name="delivery_address" rows="2"></textarea></div>
+      <div class="stock-form-group full"><label>Observations / conditions</label><textarea name="notes" rows="2"></textarea></div>
+      <div class="stock-form-actions"><button type="submit">Créer le brouillon</button></div>
+    </form>
+  </section>
+
+  <section class="stock-panel">
+    <div class="stock-panel-head"><div><h2>Historique des commandes</h2><div class="stock-muted">Les quantités restantes correspondent aux articles commandés mais pas encore réceptionnés.</div></div></div>
+    <div class="stock-table-wrap"><table class="stock-table"><thead><tr><th>N° commande</th><th>Fournisseur</th><th>Date</th><th>Livraison souhaitée</th><th>Montant HT lignes</th><th>Reste à recevoir</th><th>Statut</th></tr></thead><tbody>
+      {% for o in orders %}<tr><td><a class="stock-ref" href="/stock/achats/{{ o[0] }}"><strong>{{ o[1] }}</strong></a></td><td>{{ o[2] }}</td><td>{{ o[4] }}</td><td>{{ o[5] or '-' }}</td><td>{{ "%.2f"|format(o[6] or 0) }} €</td><td>{{ o[7] }}</td><td><span class="stock-badge stock-badge-neutral">{{ o[3] }}</span></td></tr>
+      {% else %}<tr><td colspan="7" class="stock-empty">Aucune commande fournisseur.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+</div>
+{% endblock %}

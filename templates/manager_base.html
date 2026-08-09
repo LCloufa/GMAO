@@ -32,6 +32,7 @@
         <a href="/manager/analyse" class="{% if request.path.startswith('/manager/analyse') %}active{% endif %}">📈 Analyse</a>
         <a href="/manager/rapports" class="{% if request.path.startswith('/manager/rapports') %}active{% endif %}">📄 Rapports</a>
         <a href="/manager/stock" class="{% if request.path.startswith('/manager/stock') %}active{% endif %}">📦 Stock</a>
+        <a href="/manager/achats" class="{% if request.path.startswith('/manager/achats') %}active{% endif %}">🧾 Achats</a>
         <a href="/manager/alertes" class="{% if request.path.startswith('/manager/alertes') %}active{% endif %}">⚠️ Alertes{% if alert_count %}<span class="manager-nav-count">{{ alert_count }}</span>{% endif %}</a>
     </nav>
 </header>

@@ -51,6 +51,44 @@
     const iosHint = document.getElementById('pwaIosInstallHint');
     if (iosHint && isiOS && !isStandalone) iosHint.hidden = false;
 
+    function installStockPurchaseShortcuts() {
+        if (!window.location.pathname.startsWith('/stock')) return;
+        const header = document.querySelector('.stock-header');
+        if (!header || document.getElementById('stockPurchaseShortcuts')) return;
+
+        let actions = header.querySelector('.stock-header-actions');
+        if (!actions) {
+            actions = document.createElement('div');
+            actions.className = 'stock-header-actions';
+            header.appendChild(actions);
+        }
+
+        const wrap = document.createElement('span');
+        wrap.id = 'stockPurchaseShortcuts';
+        wrap.style.display = 'contents';
+        const links = [
+            ['/stock/achats', '🧾 Commandes'],
+            ['/stock/reapprovisionnement', '🔄 Réappro'],
+            ['/stock/demandes-achat', '🛒 Demandes'],
+            ['/stock/fournisseurs/infos-achats', '🏢 Paramètres fournisseurs'],
+        ];
+        for (const [href, label] of links) {
+            if (actions.querySelector(`a[href="${href}"]`)) continue;
+            const link = document.createElement('a');
+            link.href = href;
+            link.className = 'stock-btn-secondary';
+            link.textContent = label;
+            wrap.appendChild(link);
+        }
+        actions.appendChild(wrap);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', installStockPurchaseShortcuts);
+    } else {
+        installStockPurchaseShortcuts();
+    }
+
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker
