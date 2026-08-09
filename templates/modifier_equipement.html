@@ -52,9 +52,9 @@
     <select name="client_id" required>
         <option value="" disabled {% if not equipement.client_id %}selected{% endif %}>Client *</option>
         {% for c in clients %}
-            <option value="{{ c[0] }}"
-                {% if c[0]==equipement.client_id %}selected{% endif %}>
-                {{ c[1] }}
+            <option value="{{ c.id }}"
+                {% if c.id==equipement.client_id %}selected{% endif %}>
+                {{ c.nom }}
             </option>
         {% endfor %}
     </select>
