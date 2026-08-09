@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
 
+{% set stock_locked = (intervention[2]|string|lower) == 'completed' %}
+
 <div class="stock-page">
     <section class="stock-panel stock-intervention-hero">
         <div class="stock-header">
@@ -17,11 +19,18 @@
         <div class="stock-error-box">Stock insuffisant pour cette opération.</div>
     {% endif %}
 
+    {% if stock_locked or request.args.get('locked') == '1' %}
+        <div class="stock-error-box" style="border-color:#cbd5e1;background:#f8fafc;color:#334155;">
+            🔒 Le rapport a été soumis. Les pièces liées à cette intervention sont désormais verrouillées en lecture seule.
+        </div>
+    {% endif %}
+
+    {% if not stock_locked %}
     <section class="stock-panel">
         <div class="stock-panel-head">
             <div>
-                <h2>Réserver ou consommer une pièce</h2>
-                <div class="stock-muted">La réservation bloque la disponibilité sans modifier le stock physique. La consommation crée un mouvement de sortie définitif.</div>
+                <h2>1. Gérer les pièces avant le rapport</h2>
+                <div class="stock-muted">Réserve, consomme ou retourne les pièces nécessaires. Si aucune pièce n'est utilisée, tu peux simplement passer à l'étape suivante.</div>
             </div>
         </div>
         <div class="stock-three-actions">
@@ -55,6 +64,7 @@
             </div>
         </div>
     </section>
+    {% endif %}
 
     <div class="stock-grid-2">
         <section class="stock-panel">
@@ -68,7 +78,7 @@
                             <td><strong>{{ r[1] }}</strong><div class="stock-muted">{{ r[2] }}</div></td>
                             <td>{{ r[3] }}</td><td>{{ r[4] }}</td>
                             <td><span class="stock-badge {% if r[5] == 'reserved' %}stock-badge-warning{% elif r[5] == 'consumed' %}stock-badge-ok{% else %}stock-badge-neutral{% endif %}">{{ r[5] }}</span></td>
-                            <td>{% if r[5] == 'reserved' %}<form method="POST" action="/stock/reservations/{{ r[0] }}/cancel" onsubmit="return confirm('Annuler cette réservation ?');"><button class="stock-btn-danger" type="submit">Annuler</button></form>{% else %}-{% endif %}</td>
+                            <td>{% if r[5] == 'reserved' and not stock_locked %}<form method="POST" action="/stock/reservations/{{ r[0] }}/cancel" onsubmit="return confirm('Annuler cette réservation ?');"><button class="stock-btn-danger" type="submit">Annuler</button></form>{% else %}-{% endif %}</td>
                         </tr>
                     {% else %}<tr><td colspan="5" class="stock-empty">Aucune réservation.</td></tr>{% endfor %}
                     </tbody>
@@ -95,6 +105,43 @@
             </div>
         </section>
     </div>
+
+    {% if not stock_locked %}
+    <section class="stock-panel" style="margin-top:18px;">
+        <div class="stock-panel-head">
+            <div>
+                <h2>2. Finaliser l'intervention</h2>
+                <div class="stock-muted">Une fois le rapport soumis, cette liste de pièces sera définitivement verrouillée.</div>
+            </div>
+        </div>
+        <button class="btn-success" style="width:100%;" type="button" onclick="validateStockAndOpenReport({{ intervention[0] }}, {{ (intervention[4] or '')|tojson }})">
+            ✓ Pièces vérifiées → Rédiger le rapport
+        </button>
+    </section>
+    {% endif %}
 </div>
+
+<script>
+async function validateStockAndOpenReport(interventionId, startTime) {
+    try {
+        const response = await fetch(`/stock/intervention/${interventionId}/validate`, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {"X-Requested-With": "XMLHttpRequest"}
+        });
+        if (!response.ok) {
+            const message = await response.text();
+            alert(message || "Impossible de valider les pièces de cette intervention.");
+            return;
+        }
+        document.getElementById("drawerTitle").innerText = "Rapport d'intervention";
+        openReportForm(interventionId, startTime || "");
+        document.getElementById("drawer").classList.add("open");
+    } catch (error) {
+        console.error(error);
+        alert("Impossible de valider les pièces de cette intervention.");
+    }
+}
+</script>
 
 {% endblock %}
