@@ -3,12 +3,28 @@
 Utiliser sur Render :
     python render_app.py
 
-L'application principale ``app.py`` utilise désormais directement PostgreSQL
-via SQLAlchemy et ``database_compat.py``. Aucun adaptateur SQLite n'est donc
-nécessaire ici.
+L'application principale ``app.py`` utilise directement PostgreSQL via
+SQLAlchemy et ``database_compat.py``. Render fournit généralement une URL
+``postgresql://...`` ; SQLAlchemy l'interprète alors avec le pilote psycopg2.
+Le projet utilise psycopg 3, donc l'URL est normalisée avant d'importer app.py.
 """
 
 import os
+
+
+def _use_psycopg3_driver() -> None:
+    database_url = (os.environ.get("DATABASE_URL") or "").strip()
+    if database_url.startswith("postgresql://"):
+        os.environ["DATABASE_URL"] = (
+            "postgresql+psycopg://" + database_url[len("postgresql://") :]
+        )
+    elif database_url.startswith("postgres://"):
+        os.environ["DATABASE_URL"] = (
+            "postgresql+psycopg://" + database_url[len("postgres://") :]
+        )
+
+
+_use_psycopg3_driver()
 
 from app import app, ensure_upload_dirs, init_db
 
