@@ -1,13 +1,18 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:24px; gap:20px;">
+<div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:24px; gap:20px; flex-wrap:wrap;">
     <div>
         <h1 style="margin:0;">Gestion des utilisateurs</h1>
         <p style="margin:6px 0 0; color:#64748b;">
             L’administrateur peut attribuer les profils Opérateur, Technicien ou Manager aux comptes non-admin.
         </p>
     </div>
+    <a href="/manager" class="btn-primary" style="text-decoration:none;">📊 Ouvrir le pilotage Manager</a>
+</div>
+
+<div style="margin-bottom:18px; padding:12px 14px; border-radius:10px; background:#eff6ff; color:#1e3a8a;">
+    <strong>Administrateur :</strong> accès à toutes les vues Manager et conservation de tous les droits de création, modification et suppression dans les modules opérationnels de la GMAO.
 </div>
 
 <table>

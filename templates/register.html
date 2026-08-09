@@ -5,7 +5,10 @@
 <form method="POST" class="form">
     <input type="text" name="username" placeholder="Nom d'utilisateur" required>
     <input type="password" name="password" placeholder="Mot de passe" required>
-    <input type="text" name="access_key" placeholder="Clé admin (optionnelle)">
+    <input type="password" name="access_key" placeholder="Clé d'accès (Opérateur, Technicien, Manager ou Admin)">
+    <p style="margin:-4px 0 8px; color:#64748b; font-size:13px;">
+        La clé d'accès détermine automatiquement le profil du compte. Sans clé reconnue, le compte est créé comme Opérateur.
+    </p>
     <button type="submit">Créer</button>
 </form>
 {% endblock %}
