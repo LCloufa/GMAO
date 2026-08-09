@@ -1,33 +1,24 @@
-"""Point d'entrée Render de la GMAO avec PostgreSQL.
+"""Point d'entrée Render de la GMAO PostgreSQL.
 
 Utiliser sur Render :
     python render_app.py
 
-Le fichier ``app.py`` historique reste intact. Après son import, sa référence
-globale ``sqlite3`` est remplacée par ``render_db``, ce qui fait utiliser
-PostgreSQL à toutes les routes existantes sans réécrire l'application.
+L'application principale ``app.py`` utilise désormais directement PostgreSQL
+via SQLAlchemy et ``database_compat.py``. Aucun adaptateur SQLite n'est donc
+nécessaire ici.
 """
 
 import os
 
-import app as legacy_app
-import render_db
+from app import app, ensure_upload_dirs, init_db
 
 
-# Les fonctions de route de app.py résolvent la variable globale ``sqlite3`` au
-# moment de leur exécution. On remplace donc uniquement cette variable dans le
-# module de la GMAO ; le vrai module sqlite3 Python reste intact pour les autres
-# bibliothèques.
-legacy_app.sqlite3 = render_db
+# Prépare les dossiers d'upload et crée uniquement les tables manquantes.
+# Ces opérations sont idempotentes et ne suppriment aucune donnée existante.
+ensure_upload_dirs()
+init_db()
 
-# Prépare les dossiers d'upload et crée, si nécessaire, les tables PostgreSQL
-# décrites dans models.py. Ces opérations sont idempotentes.
-legacy_app.ensure_upload_dirs()
-legacy_app.init_db()
-
-# Alias utilisable aussi par un serveur WSGI si besoin.
-application = legacy_app.app
-app = application
+application = app
 
 
 if __name__ == "__main__":
