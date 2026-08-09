@@ -1,0 +1,5 @@
+{% extends "manager_base.html" %}
+{% block content %}
+<div class="manager-page-head"><div><h1>Alertes Manager</h1><p>Points nécessitant une attention particulière dans le parc, le planning et le stock.</p></div><form class="manager-filter" method="GET"><select name="client"><option value="">Tous les clients</option>{% for c in clients %}<option value="{{ c[0] }}" {% if selected_client|string==c[0]|string %}selected{% endif %}>{{ c[1] }}</option>{% endfor %}</select><button class="manager-btn">Appliquer</button></form></div>
+<section class="manager-card"><div class="manager-card-head"><h2>{{ alert_count }} alerte(s)</h2><span class="manager-readonly">Consultation uniquement</span></div>{% for a in alerts %}<div class="manager-alert manager-alert-{{ a.level }}"><span class="manager-alert-icon"></span><div><strong>{{ a.title }}</strong><p>{{ a.detail }} · {{ a.kind }}</p></div></div>{% else %}<div class="manager-empty">Aucune alerte à afficher.</div>{% endfor %}</section>
+{% endblock %}

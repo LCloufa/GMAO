@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0f172a">
+    <title>{% block title %}Pilotage Manager · GMAO Pro{% endblock %}</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/tabs-nav.css">
+    <link rel="stylesheet" href="/static/manager.css">
+</head>
+<body class="manager-shell">
+<header class="manager-header">
+    <div class="manager-topbar">
+        <a href="/manager" class="manager-brand"><span>⚙</span><strong>GMAO Pro</strong><em>Manager</em></a>
+        <div class="manager-user">
+            <span>👤 {{ session.get('username', 'Manager') }}</span>
+            <span class="manager-readonly">Lecture seule</span>
+            <a href="/logout">Déconnexion</a>
+        </div>
+    </div>
+    <nav class="manager-nav" aria-label="Navigation Manager">
+        <a href="/manager" class="{% if request.path == '/manager' %}active{% endif %}">📊 Pilotage</a>
+        <a href="/manager/parc" class="{% if request.path.startswith('/manager/parc') %}active{% endif %}">🏭 Parc</a>
+        <a href="/manager/planning" class="{% if request.path.startswith('/manager/planning') %}active{% endif %}">📅 Planning</a>
+        <a href="/manager/analyse" class="{% if request.path.startswith('/manager/analyse') %}active{% endif %}">📈 Analyse</a>
+        <a href="/manager/rapports" class="{% if request.path.startswith('/manager/rapports') %}active{% endif %}">📄 Rapports</a>
+        <a href="/manager/stock" class="{% if request.path.startswith('/manager/stock') %}active{% endif %}">📦 Stock</a>
+        <a href="/manager/alertes" class="{% if request.path.startswith('/manager/alertes') %}active{% endif %}">⚠️ Alertes{% if alert_count %}<span class="manager-nav-count">{{ alert_count }}</span>{% endif %}</a>
+    </nav>
+</header>
+<main class="manager-main">
+    {% block content %}{% endblock %}
+</main>
+{% block scripts %}{% endblock %}
+</body>
+</html>

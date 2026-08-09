@@ -5,58 +5,41 @@
     <div>
         <h1 style="margin:0;">Gestion des utilisateurs</h1>
         <p style="margin:6px 0 0; color:#64748b;">
-            L’administrateur peut modifier les comptes non-admin entre Opérateur et Technicien.
+            L’administrateur peut attribuer les profils Opérateur, Technicien ou Manager aux comptes non-admin.
         </p>
     </div>
 </div>
 
 <table>
     <tr>
-        <th>ID</th>
-        <th>Nom</th>
-        <th>Rôle</th>
-        <th>Modifier le rôle</th>
-        <th>Action</th>
+        <th>ID</th><th>Nom</th><th>Rôle</th><th>Modifier le rôle</th><th>Action</th>
     </tr>
-
     {% for u in users %}
     {% set current_role = (u[2] or '')|lower %}
     <tr>
-        <td>{{ u[0] }}</td>
-        <td>{{ u[1] }}</td>
+        <td>{{ u[0] }}</td><td>{{ u[1] }}</td>
         <td>
-            {% if current_role == 'admin' %}
-                <span class="badge priority-critical">Administrateur</span>
-            {% elif current_role == 'technician' %}
-                <span class="badge priority-medium">Technicien</span>
-            {% else %}
-                <span class="badge priority-low">Opérateur</span>
-            {% endif %}
+            {% if current_role == 'admin' %}<span class="badge priority-critical">Administrateur</span>
+            {% elif current_role == 'technician' %}<span class="badge priority-medium">Technicien</span>
+            {% elif current_role == 'manager' %}<span class="badge priority-high">Manager</span>
+            {% else %}<span class="badge priority-low">Opérateur</span>{% endif %}
         </td>
         <td>
             {% if current_role == 'admin' %}
                 <span style="color:#64748b; font-size:13px;">Rôle protégé</span>
             {% else %}
-                <form method="POST" action="/users/{{ u[0] }}/role"
-                      style="display:flex; align-items:center; gap:8px; margin:0;">
-                    <select name="role" required style="min-width:150px; margin:0;">
+                <form method="POST" action="/users/{{ u[0] }}/role-v2" style="display:flex; align-items:center; gap:8px; margin:0;">
+                    <select name="role" required style="min-width:160px; margin:0;">
                         <option value="operator" {% if current_role == 'operator' %}selected{% endif %}>Opérateur</option>
                         <option value="technician" {% if current_role == 'technician' %}selected{% endif %}>Technicien</option>
+                        <option value="manager" {% if current_role == 'manager' %}selected{% endif %}>Manager</option>
                     </select>
                     <button class="btn-primary" type="submit">Enregistrer</button>
                 </form>
             {% endif %}
         </td>
-        <td>
-            <form method="POST" action="/users/delete/{{ u[0] }}" style="display:inline;">
-                <button class="btn-delete" type="submit"
-                        onclick="return confirm('Supprimer cet utilisateur ?')">
-                    Supprimer
-                </button>
-            </form>
-        </td>
+        <td><form method="POST" action="/users/delete/{{ u[0] }}" style="display:inline;"><button class="btn-delete" type="submit" onclick="return confirm('Supprimer cet utilisateur ?')">Supprimer</button></form></td>
     </tr>
     {% endfor %}
 </table>
-
 {% endblock %}
