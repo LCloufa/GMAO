@@ -29,6 +29,7 @@ _use_psycopg3_driver()
 from app import app, ensure_upload_dirs, init_db
 from machine_dossier import register_machine_dossier
 from machine_dossier_runtime import patch_machine_dossier_runtime
+from machine_structure import register_machine_structure
 from manager_features import register_manager_features
 from manager_registration import register_account_role_creation
 from stock_purchasing import register_stock_purchasing
@@ -42,6 +43,7 @@ patch_machine_dossier_runtime()
 
 # Enregistre les modules complémentaires avant le premier appel HTTP.
 register_machine_dossier(app)
+register_machine_structure(app)
 register_manager_features(app)
 register_account_role_creation(app)
 register_stock_purchasing(app)
