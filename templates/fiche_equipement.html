@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
 <link rel="stylesheet" href="/static/machine-dossier.css">
+{% set can_edit_machine = session.get('role') in ['admin', 'technician'] %}
 
-<div class="machine-dossier" data-machine-dossier data-equipment-id="{{ equipement.id }}">
+<div class="machine-dossier" data-machine-dossier data-equipment-id="{{ equipement.id }}" data-can-edit="{{ '1' if can_edit_machine else '0' }}">
     <section class="machine-hero">
         <div class="machine-identity">
             {% if equipement.photo %}
@@ -10,9 +11,8 @@
             {% else %}
                 <div class="machine-photo machine-photo-placeholder" aria-hidden="true">⚙</div>
             {% endif %}
-
             <div>
-                <p class="machine-eyebrow">Dossier machine numérique</p>
+                <p class="machine-eyebrow">Dossier Machine Numérique</p>
                 <h1 class="machine-title">{{ equipement.nom }}</h1>
                 <p class="machine-subtitle">
                     {{ equipement.fabricant or "Fabricant non renseigné" }}
@@ -27,88 +27,47 @@
                 </div>
             </div>
         </div>
-
         <div class="machine-actions">
             <a href="/equipements" class="btn-secondary">← Équipements</a>
-            {% if session.get('role') in ['admin', 'technician'] %}
-                <a href="/modifier_equipement/{{ equipement.id }}" class="btn-primary">Modifier le dossier</a>
-            {% endif %}
+            {% if can_edit_machine %}<a href="/modifier_equipement/{{ equipement.id }}" class="btn-primary">Modifier l'identité</a>{% endif %}
         </div>
     </section>
 
+    <div class="machine-schema-warning" data-machine-schema-warning hidden>
+        <strong>Extension du dossier machine prête.</strong>
+        Appliquez la migration <code>c7d4e2a91f30</code> pour activer structure, caractéristiques, compteurs et pièces compatibles.
+    </div>
+
     <section class="machine-kpis" aria-label="Indicateurs machine">
-        <article class="machine-kpi">
-            <span class="machine-kpi-label">Disponibilité</span>
-            <span class="machine-kpi-value" data-kpi-availability>…</span>
-            <span class="machine-kpi-note">30 derniers jours</span>
-        </article>
-        <article class="machine-kpi">
-            <span class="machine-kpi-label">Temps d'arrêt</span>
-            <span class="machine-kpi-value" data-kpi-downtime>…</span>
-            <span class="machine-kpi-note">30 derniers jours</span>
-        </article>
-        <article class="machine-kpi">
-            <span class="machine-kpi-label">Interventions</span>
-            <span class="machine-kpi-value" data-kpi-interventions>…</span>
-            <span class="machine-kpi-note">Historique total</span>
-        </article>
-        <article class="machine-kpi">
-            <span class="machine-kpi-label">En cours / prévues</span>
-            <span class="machine-kpi-value" data-kpi-open>…</span>
-            <span class="machine-kpi-note">Charge maintenance</span>
-        </article>
-        <article class="machine-kpi">
-            <span class="machine-kpi-label">Pannes ouvertes</span>
-            <span class="machine-kpi-value" data-kpi-failures>…</span>
-            <span class="machine-kpi-note">À traiter</span>
-        </article>
-        <article class="machine-kpi">
-            <span class="machine-kpi-label">Coût pièces</span>
-            <span class="machine-kpi-value" data-kpi-cost>…</span>
-            <span class="machine-kpi-note">Consommations enregistrées</span>
-        </article>
+        <article class="machine-kpi"><span class="machine-kpi-label">Disponibilité</span><span class="machine-kpi-value" data-kpi-availability>…</span><span class="machine-kpi-note">30 derniers jours</span></article>
+        <article class="machine-kpi"><span class="machine-kpi-label">Temps d'arrêt</span><span class="machine-kpi-value" data-kpi-downtime>…</span><span class="machine-kpi-note">30 derniers jours</span></article>
+        <article class="machine-kpi"><span class="machine-kpi-label">Interventions</span><span class="machine-kpi-value" data-kpi-interventions>…</span><span class="machine-kpi-note">Historique</span></article>
+        <article class="machine-kpi"><span class="machine-kpi-label">En cours / prévues</span><span class="machine-kpi-value" data-kpi-open>…</span><span class="machine-kpi-note">Charge maintenance</span></article>
+        <article class="machine-kpi"><span class="machine-kpi-label">Pannes ouvertes</span><span class="machine-kpi-value" data-kpi-failures>…</span><span class="machine-kpi-note">À traiter</span></article>
+        <article class="machine-kpi"><span class="machine-kpi-label">Coût pièces</span><span class="machine-kpi-value" data-kpi-cost>…</span><span class="machine-kpi-note">Consommations</span></article>
     </section>
 
     <nav class="machine-tabs" aria-label="Sections du dossier machine">
         <button type="button" class="machine-tab active" data-machine-tab="overview">Vue d'ensemble</button>
         <button type="button" class="machine-tab" data-machine-tab="technical">Technique</button>
+        <button type="button" class="machine-tab" data-machine-tab="structure">Structure</button>
+        <button type="button" class="machine-tab" data-machine-tab="counters">Compteurs</button>
         <button type="button" class="machine-tab" data-machine-tab="maintenance">Maintenance</button>
         <button type="button" class="machine-tab" data-machine-tab="failures">Pannes</button>
         <button type="button" class="machine-tab" data-machine-tab="parts">Pièces</button>
         <button type="button" class="machine-tab" data-machine-tab="documents">Documents</button>
         <button type="button" class="machine-tab" data-machine-tab="history">Historique</button>
-        <button type="button" class="machine-tab" data-machine-tab="structure">Structure machine</button>
     </nav>
 
     <div class="machine-loader" data-machine-loading>Chargement des données machine…</div>
 
     <section class="machine-panel active" data-machine-panel="overview">
         <div class="machine-grid">
-            <article class="machine-card third">
-                <h3>Dernière panne</h3>
-                <div class="machine-highlight" data-machine-last-failure>
-                    <strong>Chargement…</strong>
-                </div>
-            </article>
-            <article class="machine-card third">
-                <h3>Prochaine maintenance</h3>
-                <div class="machine-highlight" data-machine-next-maintenance>
-                    <strong>Chargement…</strong>
-                </div>
-            </article>
-            <article class="machine-card third">
-                <h3>Rapports disponibles</h3>
-                <div class="machine-highlight">
-                    <strong><span data-report-count>…</span> rapport(s)</strong>
-                    <span class="machine-muted">Rapports d'intervention liés à cette machine.</span>
-                </div>
-            </article>
-
+            <article class="machine-card third"><h3>Dernière panne</h3><div class="machine-highlight" data-machine-last-failure><strong>Chargement…</strong></div></article>
+            <article class="machine-card third"><h3>Prochaine maintenance</h3><div class="machine-highlight" data-machine-next-maintenance><strong>Chargement…</strong></div></article>
+            <article class="machine-card third"><h3>Rapports disponibles</h3><div class="machine-highlight"><strong><span data-report-count>…</span> rapport(s)</strong><span class="machine-muted">Comptes-rendus liés à cette machine.</span></div></article>
             <article class="machine-card full">
-                <div class="machine-card-head">
-                    <h2>Identité machine</h2>
-                    <span class="machine-badge">Référentiel</span>
-                </div>
+                <div class="machine-card-head"><h2>Identité machine</h2><span class="machine-badge">Référentiel</span></div>
                 <div class="machine-data-list">
                     <div class="machine-data-row"><span>Nom</span><span>{{ equipement.nom or "—" }}</span></div>
                     <div class="machine-data-row"><span>Code</span><span>{{ equipement.code or "—" }}</span></div>
@@ -124,92 +83,111 @@
     <section class="machine-panel" data-machine-panel="technical">
         <div class="machine-grid">
             <article class="machine-card full">
-                <div class="machine-card-head">
-                    <h2>Caractéristiques techniques</h2>
-                    {% if session.get('role') in ['admin', 'technician'] %}
-                        <a href="/modifier_equipement/{{ equipement.id }}">Modifier</a>
-                    {% endif %}
-                </div>
+                <div class="machine-card-head"><h2>Données constructeur</h2>{% if can_edit_machine %}<a href="/modifier_equipement/{{ equipement.id }}">Modifier</a>{% endif %}</div>
                 <div class="machine-data-list">
                     <div class="machine-data-row"><span>Fabricant</span><span>{{ equipement.fabricant or "—" }}</span></div>
                     <div class="machine-data-row"><span>Modèle</span><span>{{ equipement.modele or "—" }}</span></div>
                     <div class="machine-data-row"><span>Numéro de série</span><span>{{ equipement.numero_serie or "—" }}</span></div>
-                    <div class="machine-data-row"><span>Type</span><span>{{ equipement.type or "—" }}</span></div>
                     <div class="machine-data-row"><span>Date d'installation</span><span>{{ equipement.date_installation or "—" }}</span></div>
-                    <div class="machine-data-row"><span>Emplacement</span><span>{{ equipement.emplacement or "—" }}</span></div>
                 </div>
             </article>
             <article class="machine-card full">
-                <div class="machine-phase2">
-                    <strong>Prochaine évolution : caractéristiques dynamiques</strong>
-                    Les caractéristiques spécifiques à chaque famille de machine (CN, puissance, courses, broche, alimentation, pression, logiciel, réseau…) seront ajoutées ici sans multiplier les colonnes de la table équipements.
-                </div>
+                <div class="machine-card-head"><h2>Caractéristiques dynamiques</h2><span class="machine-badge" data-spec-count>0</span></div>
+                <div data-machine-specifications><div class="machine-empty">Aucune caractéristique personnalisée.</div></div>
+                {% if can_edit_machine %}
+                <form class="machine-inline-form" data-spec-form>
+                    <input name="groupe" placeholder="Groupe (ex. Broche)">
+                    <input name="nom" placeholder="Caractéristique *" required>
+                    <input name="valeur" placeholder="Valeur">
+                    <input name="unite" placeholder="Unité">
+                    <select name="component_id" data-component-select><option value="">Machine entière</option></select>
+                    <button class="btn-primary" type="submit">Ajouter</button>
+                </form>
+                {% endif %}
             </article>
         </div>
-    </section>
-
-    <section class="machine-panel" data-machine-panel="maintenance">
-        <article class="machine-card full">
-            <div class="machine-card-head"><h2>Interventions machine</h2><a href="/interventions">Ouvrir le planning</a></div>
-            <div data-machine-interventions><div class="machine-empty">Chargement des interventions…</div></div>
-        </article>
-    </section>
-
-    <section class="machine-panel" data-machine-panel="failures">
-        <article class="machine-card full">
-            <div class="machine-card-head"><h2>Historique des pannes</h2><a href="/declarations">Toutes les déclarations</a></div>
-            <div data-machine-failures><div class="machine-empty">Chargement des pannes…</div></div>
-        </article>
-    </section>
-
-    <section class="machine-panel" data-machine-panel="parts">
-        <article class="machine-card full">
-            <div class="machine-card-head"><h2>Pièces utilisées sur la machine</h2><a href="/stock">Ouvrir le stock</a></div>
-            <div data-machine-parts><div class="machine-empty">Chargement des consommations…</div></div>
-        </article>
-    </section>
-
-    <section class="machine-panel" data-machine-panel="documents">
-        <article class="machine-card full">
-            <div class="machine-card-head">
-                <h2>Documents machine</h2>
-                {% if session.get('role') in ['admin', 'technician'] %}
-                    <a href="/modifier_equipement/{{ equipement.id }}">Ajouter un document</a>
-                {% endif %}
-            </div>
-            {% if documents %}
-                <div class="machine-docs">
-                    {% for doc in documents %}
-                        <a class="machine-doc" href="/{{ doc.filepath }}" target="_blank" rel="noopener">
-                            <span aria-hidden="true">📄</span>
-                            <span>{{ doc.filename }}</span>
-                        </a>
-                    {% endfor %}
-                </div>
-            {% else %}
-                <div class="machine-empty">Aucun document n'est encore rattaché à cette machine.</div>
-            {% endif %}
-        </article>
-    </section>
-
-    <section class="machine-panel" data-machine-panel="history">
-        <article class="machine-card full">
-            <h2>Journal de vie de la machine</h2>
-            <p class="machine-muted">Cette chronologie est générée automatiquement à partir des pannes, interventions, rapports et mouvements de pièces.</p>
-            <div data-machine-timeline><div class="machine-empty">Construction de l'historique…</div></div>
-        </article>
     </section>
 
     <section class="machine-panel" data-machine-panel="structure">
         <div class="machine-grid">
             <article class="machine-card full">
-                <h2>Arborescence technique</h2>
-                <div class="machine-phase2">
-                    <strong>Étape 2 du Dossier Machine Numérique</strong>
-                    La machine pourra être découpée en sous-ensembles et composants (broche, axes, hydraulique, convoyeur, capteurs…), auxquels nous rattacherons ensuite les pannes, pièces et documents.
-                </div>
+                <div class="machine-card-head"><h2>Arborescence technique</h2><span class="machine-badge" data-component-count>0 élément</span></div>
+                <div data-machine-components><div class="machine-empty">Aucun sous-ensemble ou composant.</div></div>
+                {% if can_edit_machine %}
+                <form class="machine-editor-form" data-component-form>
+                    <div class="machine-form-grid">
+                        <input name="nom" placeholder="Nom du sous-ensemble / composant *" required>
+                        <input name="code" placeholder="Code / repère">
+                        <select name="type_composant"><option value="Sous-ensemble">Sous-ensemble</option><option value="Composant">Composant</option><option value="Organe">Organe</option><option value="Capteur">Capteur</option></select>
+                        <select name="criticite"><option value="low">Faible</option><option value="medium" selected>Moyenne</option><option value="high">Haute</option><option value="critical">Critique</option></select>
+                        <select name="parent_id" data-component-parent><option value="">Racine de la machine</option></select>
+                        <input name="fabricant" placeholder="Fabricant">
+                        <input name="modele" placeholder="Modèle">
+                        <input name="numero_serie" placeholder="N° de série">
+                    </div>
+                    <textarea name="notes" placeholder="Notes techniques"></textarea>
+                    <button class="btn-primary" type="submit">Ajouter à la structure</button>
+                </form>
+                {% endif %}
             </article>
         </div>
+    </section>
+
+    <section class="machine-panel" data-machine-panel="counters">
+        <article class="machine-card full">
+            <div class="machine-card-head"><h2>Compteurs machine</h2><span class="machine-badge" data-counter-count>0</span></div>
+            <p class="machine-muted">Heures sous tension, heures broche, cycles, kilomètres ou tout autre compteur d'usage.</p>
+            <div data-machine-counters><div class="machine-empty">Aucun compteur configuré.</div></div>
+            {% if can_edit_machine %}
+            <form class="machine-inline-form" data-counter-form>
+                <input name="nom" placeholder="Nom du compteur *" required>
+                <input name="unite" value="h" placeholder="Unité">
+                <select name="type_compteur"><option value="usage">Usage</option><option value="hours">Heures</option><option value="cycles">Cycles</option><option value="distance">Distance</option></select>
+                <input name="valeur_initiale" type="number" step="0.001" placeholder="Valeur initiale">
+                <select name="component_id" data-component-select><option value="">Machine entière</option></select>
+                <button class="btn-primary" type="submit">Créer le compteur</button>
+            </form>
+            {% endif %}
+        </article>
+    </section>
+
+    <section class="machine-panel" data-machine-panel="maintenance">
+        <article class="machine-card full"><div class="machine-card-head"><h2>Interventions machine</h2><a href="/interventions">Ouvrir le planning</a></div><div data-machine-interventions><div class="machine-empty">Chargement…</div></div></article>
+    </section>
+
+    <section class="machine-panel" data-machine-panel="failures">
+        <article class="machine-card full"><div class="machine-card-head"><h2>Historique des pannes</h2><a href="/declarations">Toutes les déclarations</a></div><div data-machine-failures><div class="machine-empty">Chargement…</div></div></article>
+    </section>
+
+    <section class="machine-panel" data-machine-panel="parts">
+        <div class="machine-grid">
+            <article class="machine-card full">
+                <div class="machine-card-head"><h2>Pièces compatibles / nomenclature</h2><span class="machine-badge" data-compatible-part-count>0</span></div>
+                <div data-machine-compatible-parts><div class="machine-empty">Aucune pièce compatible enregistrée.</div></div>
+                {% if can_edit_machine %}
+                <form class="machine-inline-form" data-compatible-part-form>
+                    <input name="reference" placeholder="Référence stock exacte *" required>
+                    <input name="quantite_recommandee" type="number" min="0" step="0.001" placeholder="Qté recommandée">
+                    <select name="component_id" data-component-select><option value="">Machine entière</option></select>
+                    <label class="machine-check"><input type="checkbox" name="critique"> Pièce critique</label>
+                    <input name="notes" placeholder="Notes">
+                    <button class="btn-primary" type="submit">Lier la pièce</button>
+                </form>
+                {% endif %}
+            </article>
+            <article class="machine-card full"><div class="machine-card-head"><h2>Consommations historiques</h2><a href="/stock">Ouvrir le stock</a></div><div data-machine-parts><div class="machine-empty">Chargement…</div></div></article>
+        </div>
+    </section>
+
+    <section class="machine-panel" data-machine-panel="documents">
+        <article class="machine-card full">
+            <div class="machine-card-head"><h2>Documents machine</h2>{% if can_edit_machine %}<a href="/modifier_equipement/{{ equipement.id }}">Ajouter un document</a>{% endif %}</div>
+            {% if documents %}<div class="machine-docs">{% for doc in documents %}<a class="machine-doc" href="/{{ doc.filepath }}" target="_blank" rel="noopener"><span>📄</span><span>{{ doc.filename }}</span></a>{% endfor %}</div>{% else %}<div class="machine-empty">Aucun document rattaché.</div>{% endif %}
+        </article>
+    </section>
+
+    <section class="machine-panel" data-machine-panel="history">
+        <article class="machine-card full"><h2>Journal de vie de la machine</h2><p class="machine-muted">Chronologie automatique des pannes, interventions, rapports et consommations.</p><div data-machine-timeline><div class="machine-empty">Construction de l'historique…</div></div></article>
     </section>
 </div>
 

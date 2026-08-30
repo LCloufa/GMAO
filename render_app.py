@@ -28,6 +28,7 @@ _use_psycopg3_driver()
 
 from app import app, ensure_upload_dirs, init_db
 from machine_dossier import register_machine_dossier
+from machine_dossier_runtime import patch_machine_dossier_runtime
 from manager_features import register_manager_features
 from manager_registration import register_account_role_creation
 from stock_purchasing import register_stock_purchasing
@@ -35,6 +36,9 @@ from stock_purchasing_extras import register_stock_purchasing_extras
 from stock_supplier_views import register_stock_supplier_views
 from stock_reset import register_stock_reset
 
+
+# Applique les garde-fous de compatibilité avant l'enregistrement du blueprint.
+patch_machine_dossier_runtime()
 
 # Enregistre les modules complémentaires avant le premier appel HTTP.
 register_machine_dossier(app)
@@ -45,8 +49,10 @@ register_stock_purchasing_extras(app)
 register_stock_supplier_views(app)
 register_stock_reset(app)
 
-# Prépare les dossiers d'upload et crée uniquement les tables manquantes.
-# Les modules complémentaires déclarent leurs modèles avant init_db().
+# Prépare les dossiers d'upload. Le create_all historique reste temporairement
+# conservé tant que toutes les tables des modules annexes n'ont pas leur propre
+# migration Alembic. Les nouvelles tables Dossier Machine ne sont pas déclarées
+# comme modèles SQLAlchemy et ne peuvent donc être créées que par leur migration.
 ensure_upload_dirs()
 init_db()
 
