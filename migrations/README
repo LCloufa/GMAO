@@ -1,0 +1,4 @@
+Single-database configuration for Flask-Migrate / Alembic.
+
+Le schéma PostgreSQL de la GMAO est versionné dans migrations/versions.
+Ne pas utiliser db.create_all() pour faire évoluer le schéma de production.
