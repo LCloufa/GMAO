@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <link rel="stylesheet" href="/static/machine-dossier.css">
+<link rel="stylesheet" href="/static/machine-structure-v3.css">
 {% set can_edit_machine = session.get('role') in ['admin', 'technician'] %}
 
 <div class="machine-dossier" data-machine-dossier data-equipment-id="{{ equipement.id }}" data-can-edit="{{ '1' if can_edit_machine else '0' }}">
@@ -111,24 +112,53 @@
     <section class="machine-panel" data-machine-panel="structure">
         <div class="machine-grid">
             <article class="machine-card full">
-                <div class="machine-card-head"><h2>Arborescence technique</h2><span class="machine-badge" data-component-count>0 élément</span></div>
-                <div data-machine-components><div class="machine-empty">Aucun sous-ensemble ou composant.</div></div>
-                {% if can_edit_machine %}
-                <form class="machine-editor-form" data-component-form>
-                    <div class="machine-form-grid">
-                        <input name="nom" placeholder="Nom du sous-ensemble / composant *" required>
-                        <input name="code" placeholder="Code / repère">
-                        <select name="type_composant"><option value="Sous-ensemble">Sous-ensemble</option><option value="Composant">Composant</option><option value="Organe">Organe</option><option value="Capteur">Capteur</option></select>
-                        <select name="criticite"><option value="low">Faible</option><option value="medium" selected>Moyenne</option><option value="high">Haute</option><option value="critical">Critique</option></select>
-                        <select name="parent_id" data-component-parent><option value="">Racine de la machine</option></select>
-                        <input name="fabricant" placeholder="Fabricant">
-                        <input name="modele" placeholder="Modèle">
-                        <input name="numero_serie" placeholder="N° de série">
+                <div class="machine-card-head"><h2>Arborescence technique</h2><span class="machine-badge" data-structure-v3-count>0 élément</span></div>
+                <div class="machine-structure-intro">
+                    <div>
+                        <strong>Structure normalisée à 3 niveaux</strong>
+                        <div class="machine-structure-flow"><span>Nom de l'ensemble</span><b>→</b><span>Nom du sous-ensemble</span><b>→</b><span>Composant</span></div>
                     </div>
-                    <textarea name="notes" placeholder="Notes techniques"></textarea>
-                    <button class="btn-primary" type="submit">Ajouter à la structure</button>
-                </form>
+                    <span class="machine-muted">Les composants portent les données d'achat.</span>
+                </div>
+
+                {% if can_edit_machine %}
+                <div class="machine-structure-builders">
+                    <div class="machine-structure-builder">
+                        <h3>1. Créer un ensemble</h3>
+                        <p>Premier niveau de la machine.</p>
+                        <form data-structure-create="ensemble">
+                            <input name="nom" placeholder="Nom de l'ensemble *" required>
+                            <input name="code" placeholder="Code / repère">
+                            <button class="btn-primary" type="submit">Ajouter l'ensemble</button>
+                        </form>
+                    </div>
+                    <div class="machine-structure-builder">
+                        <h3>2. Créer un sous-ensemble</h3>
+                        <p>Le sous-ensemble appartient obligatoirement à un ensemble.</p>
+                        <form data-structure-create="sous_ensemble">
+                            <select name="parent_id" required><option value="">Choisir un ensemble *</option></select>
+                            <input name="nom" placeholder="Nom du sous-ensemble *" required>
+                            <input name="code" placeholder="Code / repère">
+                            <button class="btn-primary" type="submit">Ajouter le sous-ensemble</button>
+                        </form>
+                    </div>
+                    <div class="machine-structure-builder">
+                        <h3>3. Ajouter un composant</h3>
+                        <p>Fournisseur, délai d'obtention et prix sont enregistrés ici.</p>
+                        <form data-structure-create="composant">
+                            <select name="parent_id" required><option value="">Choisir un sous-ensemble *</option></select>
+                            <input name="nom" placeholder="Nom du composant *" required>
+                            <input name="code" placeholder="Code / référence">
+                            <select name="supplier_id"><option value="">Aucun fournisseur</option></select>
+                            <input name="delai_obtention_jours" type="number" min="0" step="1" placeholder="Délai d'obtention (jours)">
+                            <input name="prix_unitaire" type="number" min="0" step="0.01" placeholder="Prix (€)">
+                            <button class="btn-primary" type="submit">Ajouter le composant</button>
+                        </form>
+                    </div>
+                </div>
                 {% endif %}
+
+                <div data-machine-structure-v3><div class="machine-empty">Chargement de l'arborescence…</div></div>
             </article>
         </div>
     </section>
@@ -192,4 +222,5 @@
 </div>
 
 <script src="/static/machine-dossier.js"></script>
+<script src="/static/machine-structure-v3.js"></script>
 {% endblock %}
