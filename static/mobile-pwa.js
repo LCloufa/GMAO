@@ -6,7 +6,7 @@
         const brandMark = document.querySelector('.tabs-brand-mark');
         if (brandMark) {
             const image = document.createElement('img');
-            image.src = '/static/brand-logo.png?v=3';
+            image.src = '/static/app-icon-192.png?v=4';
             image.alt = 'GMAO Pro';
             image.width = 34;
             image.height = 34;
@@ -22,18 +22,18 @@
 
         const favicon = document.querySelector('link[rel="icon"]');
         if (favicon) {
-            favicon.href = '/static/app-icon-192.png?v=3';
+            favicon.href = '/static/app-icon-192.png?v=4';
             favicon.type = 'image/png';
         }
 
         const appleIcon = document.querySelector('link[rel="apple-touch-icon"]');
         if (appleIcon) {
-            appleIcon.href = '/static/app-icon-180.png?v=3';
+            appleIcon.href = '/static/app-icon-180.png?v=4';
         }
 
         const manifest = document.querySelector('link[rel="manifest"]');
         if (manifest) {
-            manifest.href = '/static/manifest.webmanifest?v=3';
+            manifest.href = '/static/manifest.webmanifest?v=4';
         }
     }
 
@@ -138,9 +138,6 @@
             }
         });
 
-        // Le contrôle global historique possède sa propre confirmation. Pour
-        // la nouvelle cible stock, on intercepte uniquement cette soumission
-        // afin d'afficher le bon avertissement au lieu d'un message générique.
         form.addEventListener('submit', (event) => {
             if (select.value !== 'stock') return;
 
