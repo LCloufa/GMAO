@@ -46,6 +46,7 @@
   const articleSelect = form.querySelector("[data-part-article]");
   const componentSelect = form.querySelector("[data-part-component]");
   const submitButton = form.querySelector('button[type="submit"]');
+  let refreshTimer = null;
 
   async function loadOptions() {
     const currentArticle = articleSelect.value;
@@ -70,6 +71,13 @@
     submitButton.disabled = !articles.length || !components.length;
     if (!articles.length) articleSelect.innerHTML = '<option value="">Aucun article actif dans le stock</option>';
     if (!components.length) componentSelect.innerHTML = '<option value="">Crée d’abord un composant dans l’arborescence</option>';
+  }
+
+  function scheduleOptionsRefresh() {
+    window.clearTimeout(refreshTimer);
+    refreshTimer = window.setTimeout(() => {
+      loadOptions().catch((error) => window.console.error("Actualisation liaison stock/composant", error));
+    }, 150);
   }
 
   form.addEventListener("submit", async (event) => {
@@ -97,9 +105,15 @@
     }
   });
 
-  root.addEventListener("machine-structure-updated", () => {
-    loadOptions().catch((error) => window.console.error("Actualisation liaison stock/composant", error));
-  });
+  root.addEventListener("machine-structure-updated", scheduleOptionsRefresh);
+
+  const structureTarget = root.querySelector("[data-machine-structure-v3]");
+  if (structureTarget) {
+    new MutationObserver(scheduleOptionsRefresh).observe(structureTarget, {
+      childList: true,
+      subtree: true,
+    });
+  }
 
   const wantedTab = sessionStorage.getItem(`machine-active-tab-${equipmentId}`);
   if (wantedTab) {
