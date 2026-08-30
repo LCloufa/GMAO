@@ -93,6 +93,31 @@ def _component_target(conn, equipment_id, component_id):
     return cursor.fetchone()
 
 
+@machine_part_links_bp.after_app_request
+def inject_machine_part_link_script(response):
+    """Charge l'éditeur de liaison uniquement sur une fiche machine.
+
+    Cela évite de modifier le template historique du dossier tout en remplaçant
+    proprement son ancien formulaire de saisie par référence exacte.
+    """
+    if request.method != "GET" or response.mimetype != "text/html":
+        return response
+    if not request.path.startswith("/equipements/"):
+        return response
+
+    html = response.get_data(as_text=True)
+    if "data-machine-dossier" not in html or "/static/machine-part-links.js" in html:
+        return response
+
+    response.set_data(
+        html.replace(
+            "</body>",
+            '<script src="/static/machine-part-links.js"></script>\n</body>',
+        )
+    )
+    return response
+
+
 @machine_part_links_bp.route("/api/equipements/<int:equipment_id>/part-link-options", methods=["GET"])
 def part_link_options(equipment_id):
     denied = _require_auth()
@@ -175,7 +200,6 @@ def create_part_link(equipment_id):
         conn.close()
         return jsonify({"error": "Le composant choisi n'est pas un composant du troisième niveau de cette machine."}), 400
 
-    conn.row_factory = None
     cursor = conn.cursor()
     cursor.execute(
         """
