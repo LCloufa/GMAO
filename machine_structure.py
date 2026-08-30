@@ -38,7 +38,10 @@ def _schema_ready(conn):
         """
     )
     row = cursor.fetchone()
-    return bool(row and int(row[0] or 0) == 3)
+    if not row:
+        return False
+    count = row.get("count", 0) if isinstance(row, dict) else row[0]
+    return int(count or 0) == 3
 
 
 def _migration_required():
@@ -247,7 +250,8 @@ def create_structure_element(equipment_id):
         """,
         (equipment_id, parent_id, code, nom, type_composant, supplier_id, delai, prix),
     )
-    row_id = cursor.fetchone()[0]
+    created = cursor.fetchone()
+    row_id = created.get("id") if isinstance(created, dict) else created[0]
     conn.commit()
     conn.close()
     return jsonify({"ok": True, "id": row_id}), 201
