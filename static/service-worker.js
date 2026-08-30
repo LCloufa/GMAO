@@ -1,8 +1,7 @@
-const CACHE_NAME = 'gmao-pro-shell-v3';
+const CACHE_NAME = 'gmao-pro-shell-v4';
 const STATIC_ASSETS = [
     '/static/mobile-pwa.css',
     '/static/mobile-pwa.js',
-    '/static/brand-logo.png',
     '/static/app-icon-180.png',
     '/static/app-icon-192.png',
     '/static/app-icon-512.png',
