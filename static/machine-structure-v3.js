@@ -162,6 +162,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const supplierSelect = root.querySelector('[data-structure-create="composant"] select[name="supplier_id"]');
     if (supplierSelect) supplierSelect.innerHTML = supplierOptions();
+
+    const sorted = [...items].sort((a, b) => depthOf(a, byId) - depthOf(b, byId) || String(a.nom).localeCompare(String(b.nom), "fr"));
+    root.querySelectorAll("[data-component-select]").forEach((select) => {
+      const current = select.value;
+      select.innerHTML = '<option value="">Machine entière</option>' + sorted.map((item) => {
+        const depth = Math.min(depthOf(item, byId), 3);
+        return `<option value="${Number(item.id)}">${"— ".repeat(depth)}${esc(item.nom)}</option>`;
+      }).join("");
+      if ([...select.options].some((option) => option.value === current)) select.value = current;
+    });
   }
 
   function formDataObject(form) {
